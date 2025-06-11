@@ -2,7 +2,13 @@ import puppeteer from 'puppeteer';
 import { delay } from './utils.js';
 
 export async function getTodayMinTicketPrice() {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({headless: true,
+      args: [
+        `--no-sandbox`
+        `--disable-setuid-sandbox`
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`
+      ]});
   const page = await browser.newPage();
   await page.goto('https://hamiltonmusical.com/london/');
   await delay(1000);
