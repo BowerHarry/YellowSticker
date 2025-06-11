@@ -1,0 +1,16 @@
+{
+  "name": "testproject",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "nodemailer": "^7.0.3",
+    "puppeteer": "^24.10.0",
+    "puppeteer-core": "^24.10.0"
+  }
+}
