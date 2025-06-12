@@ -23,8 +23,7 @@ export async function getTodayMinTicketPrice() {
   console.log(thisMonthPerformanceIds);
 
   if (thisMonthPerformanceIds.length === 0) {
-    await browser.close();
-    return null;
+    console.log('No performances found!');
   }
 
   const today = new Date().toLocaleDateString('en-CA');
@@ -41,6 +40,7 @@ export async function getTodayMinTicketPrice() {
         .map(band => band.min)
         .sort((a, b) => a - b);
       todayCheapestTickets.push(minValues[0]);
+      console.log(`Cheap ticket today: ${minValues[0]}`);
     }
   }
   await browser.close();
