@@ -30,7 +30,7 @@ export async function getTodayMinTicketPrice() {
   let todayCheapestTickets = [];
   for (const performanceId of thisMonthPerformanceIds) {
     await page.goto(`https://hamiltonmusical.com/london/#/seats/${performanceId}?qty=1`);
-    await delay(1500);
+    await delay(2000);
     const sessionStorage = JSON.parse(await page.evaluate(
       () => JSON.stringify(window.sessionStorage)
     ));
