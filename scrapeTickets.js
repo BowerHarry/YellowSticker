@@ -7,7 +7,7 @@ export async function getTodayMinTicketPrice() {
         `--disable-setuid-sandbox`]});
   const page = await browser.newPage();
   await page.goto('https://hamiltonmusical.com/london/');
-  await delay(1000);
+  await delay(1500);
 
   const thisMonthPerformanceIds = JSON.parse(await page.evaluate(() => {
     const numberSuffixes = [];
