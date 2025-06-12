@@ -20,6 +20,8 @@ export async function getTodayMinTicketPrice() {
     return JSON.stringify(numberSuffixes);
   }));
 
+  console.log(thisMonthPerformanceIds);
+
   if (thisMonthPerformanceIds.length === 0) {
     await browser.close();
     return null;
