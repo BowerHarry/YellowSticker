@@ -20,7 +20,9 @@ export async function areStandingTicketsAvailable() {
   await page.setViewport({ width: 1280, height: 800 });
   await page.goto('https://buytickets.delfontmackintosh.co.uk/tickets/series/SONLMSEPT25/');
 
-  await delay(5000);
+  await delay(1500);
+  const html = await page.content();
+console.log(html);
   await page.waitForSelector('button.day:not(.no-hover)'); // Wait for at least one button to appear
 
   await page.evaluate((dayOfMonth) => {
