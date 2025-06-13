@@ -1,10 +1,12 @@
-import { getTodayMinTicketPrice } from './scrapeTickets.js';
+import * as lesMis from './scrapeLesMiserablesTickets.js';
+import * as hamilton from './scrapeHamiltonTickets.js';
 import { sendEmail } from './sendEmail.js';
 
-const minPrice = await getTodayMinTicketPrice();
-if (minPrice !== null && minPrice < 20) {
-  console.log(`There is a standing ticket available today for £${minPrice}!`);
-  await sendEmail(minPrice);
+const lesMisStandingTickets = await lesMis.areStandingTicketsAvailable();
+const hamiltonStandingTickets = await hamilton.areStandingTicketsAvailable();
+if (lesMisStandingTickets || hamiltonStandingTickets) {
+  console.log(`There are standing tickets available today for Les Misérables: ${lesMisStandingTickets}, Hamilton: ${hamiltonStandingTickets}`);
+  // await sendEmail(lesMisStandingTickets, hamiltonStandingTickets);
 } else {
-  console.log('No performances remaining today.');
+  console.log('No standing tickets available.');
 }

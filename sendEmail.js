@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 
-export async function sendEmail(minPrice) {
+export async function sendEmail(lesMisAvailable, hamiltonAvailable) {
   let transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -12,8 +12,10 @@ export async function sendEmail(minPrice) {
   let info = await transporter.sendMail({
     from: `"Ticket Bot" <${process.env.EMAIL_USER}>`,
     to: `${process.env.EMAIL_RECIPIENT}`,
-    subject: 'Cheapest Hamilton Ticket Today',
-    text: `The cheapest ticket today is £${minPrice}!`,
+    subject: 'Standing Tickets Available!',
+    html: `<p>Standing tickets are available today!</p>
+           <p>Les Misérables: ${lesMisAvailable ? 'Yes' : 'No'}</p>
+           <p>Hamilton: ${hamiltonAvailable ? 'Yes' : 'No'}</p>`,
   });
 
   console.log('Email sent:', info.messageId);
