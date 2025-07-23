@@ -1,21 +1,21 @@
-name: Run Ticket Checker Hourly
+# name: Run Ticket Checker Hourly
 
-on:
-  schedule:
-    - cron: '0 * * * *' # every hour, UTC
-  workflow_dispatch:      # allows manual runs
+# on:
+#   schedule:
+#     - cron: '0 * * * *' # every hour, UTC
+#   workflow_dispatch:      # allows manual runs
 
-jobs:
-  run-script:
-    runs-on: ubuntu-latest
-    env:
-      EMAIL_USER: ${{ secrets.EMAIL_USER }}
-      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-      EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install
-      - run: node index.js
+# jobs:
+#   run-script:
+#     runs-on: ubuntu-latest
+#     env:
+#       EMAIL_USER: ${{ secrets.EMAIL_USER }}
+#       EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+#       EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: actions/setup-node@v4
+#         with:
+#           node-version: 20
+#       - run: npm install
+#       - run: node index.js
