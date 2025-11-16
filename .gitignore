@@ -1,0 +1,39 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependency directories
+node_modules
+/web/node_modules
+
+# Build outputs
+dist
+/web/dist
+
+# Editor directories and files
+.idea
+.vscode
+*.swp
+
+# Local env files
+.env
+.env.*
+/web/.env
+/web/.env.*
+
+# Supabase generated artifacts
+supabase/.temp
+supabase/.branches
+
+
+/docs
+/docs
+/docs
+*.md
+docs/CHEAP_SCRAPING_OPTIONS.md
+docs/env.sample
+/supabase/migrations

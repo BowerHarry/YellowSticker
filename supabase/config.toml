@@ -1,0 +1,11 @@
+project_id = "yellow-sticker"
+
+[functions."create-checkout-session"]
+verify_jwt = false
+
+[functions."stripe-webhook"]
+verify_jwt = false
+
+[functions."scrape-tickets"]
+verify_jwt = false
+

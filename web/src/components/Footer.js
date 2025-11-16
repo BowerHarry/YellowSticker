@@ -1,0 +1,2 @@
+import { jsxs as _jsxs, jsx as _jsx } from "react/jsx-runtime";
+export const Footer = () => (_jsx("footer", { className: "footer", children: _jsxs("div", { className: "footer__inner", children: [_jsxs("span", { children: ["\u00A9 ", new Date().getFullYear(), " Yellow Sticker"] }), _jsx("span", { children: "\u00A34.99 per production \u00B7 Standing ticket alerts \u00B7 Powered by Supabase & Stripe" })] }) }));

@@ -1,0 +1,3 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { Link } from 'react-router-dom';
+export const Header = () => (_jsx("header", { className: "site-header", children: _jsxs("div", { className: "site-header__inner", children: [_jsxs(Link, { to: "/", className: "site-header__brand", children: [_jsx("span", { className: "site-header__mark", children: "YS" }), _jsxs("div", { className: "site-header__text", children: [_jsx("strong", { children: "Yellow Sticker" }), _jsx("small", { children: "SAME-DAY THEATRE DROPS" })] })] }), _jsx("div", { className: "site-header__actions", children: _jsx("a", { href: "#productions", className: "btn btn--small", children: "Get alerts" }) })] }) }));
