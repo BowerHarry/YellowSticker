@@ -208,9 +208,9 @@ const fetchWithSelfHosted = async (
   console.log(`[Self-Hosted] Fetching via ${cleanServiceUrl} with wait=${wait}ms`);
   
   try {
-    // Pi scraper can take 2-4 minutes with Cloudflare challenges, so use a longer timeout
+    // VPS scraper can take 1-3 minutes with Cloudflare challenges
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout (Pi 2B is slow)
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout (VPS is faster than Pi)
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -253,7 +253,7 @@ const fetchWithSelfHosted = async (
       throw new Error('SELF_HOSTED_CLOUDFLARE_BLOCKED');
     }
 
-    console.log(`Fetched raw HTML via self-hosted scraper (Pi), length: ${result.html.length}, elapsed: ${result.elapsed_ms}ms`);
+    console.log(`Fetched raw HTML via self-hosted scraper (VPS), length: ${result.html.length}, elapsed: ${result.elapsed_ms}ms`);
     console.log(`Processing HTML in Supabase Edge Function (cheerio parsing, etc.)`);
     return result.html;
   } catch (error) {
@@ -333,11 +333,11 @@ const fetchRenderedHtml = async (
     }
   } catch (selfHostedError) {
     const errorMessage = (selfHostedError as Error).message;
-    console.error('Self-hosted scraper (Pi) failed:', errorMessage);
+    console.error('Self-hosted scraper (VPS) failed:', errorMessage);
     
     // Handle rate limit - wait and retry
     if (errorMessage.includes('SELF_HOSTED_RATE_LIMIT') || errorMessage.includes('429')) {
-      console.warn('Pi scraper rate limit hit, waiting 60 seconds before retry...');
+      console.warn('VPS scraper rate limit hit, waiting 60 seconds before retry...');
       const delayWithJitter = addJitter(60, 0.2); // 60 seconds ± 20% jitter
       await new Promise((resolve) => setTimeout(resolve, delayWithJitter * 1000));
       if (retryCount < maxRetries) {
@@ -347,7 +347,7 @@ const fetchRenderedHtml = async (
     
     // Handle server errors - retry once
     if (errorMessage.includes('SELF_HOSTED_SERVER_ERROR') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ETIMEDOUT')) {
-      console.warn('Pi scraper server error, retrying...');
+      console.warn('VPS scraper server error, retrying...');
       if (retryCount < maxRetries) {
         const delayWithJitter = addJitter(5, 0.3); // 5 seconds ± 30% jitter
         await new Promise((resolve) => setTimeout(resolve, delayWithJitter * 1000));
@@ -359,7 +359,7 @@ const fetchRenderedHtml = async (
     throw selfHostedError;
   }
   
-  throw new Error('Self-hosted scraper (Pi) returned null - check Pi service configuration');
+  throw new Error('Self-hosted scraper (VPS) returned null - check VPS service configuration');
 };
 
 type CalendarStandingScraperConfig = {

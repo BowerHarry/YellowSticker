@@ -53,41 +53,29 @@ app.post('/scrape', authenticate, async (req, res) => {
   try {
     console.log(`[Scraper] Starting scrape for: ${url}`);
     
-    // Launch browser with stealth settings optimized for Pi 2B
-    // Use system Chromium on ARM (Raspberry Pi) if available
+    // Enhanced Undetected Chrome configuration for VPS
+    // Use 'new' headless mode which is harder to detect than old headless
     const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
     
-    // Enhanced Undetected Chrome configuration
-    // Use 'new' headless mode which is harder to detect than old headless
     browser = await puppeteer.launch({
       headless: 'new', // New headless mode (harder to detect)
-      executablePath: executablePath, // Use system Chromium on ARM
+      executablePath: executablePath, // Use system Chromium if specified
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage', // Critical for Pi 2B with limited RAM
+        '--disable-dev-shm-usage', // Prevents /dev/shm issues
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote', // Saves memory on Pi
         '--disable-gpu',
         '--disable-blink-features=AutomationControlled',
         // Enhanced stealth args
         '--disable-features=IsolateOrigins,site-per-process',
         '--disable-web-security',
         '--disable-features=VizDisplayCompositor',
-        // Additional args for ARM/Raspberry Pi
-        '--disable-software-rasterizer',
-        '--disable-extensions',
-        '--disable-background-networking', // Save resources
-        '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-features=TranslateUI',
-        '--disable-ipc-flooding-protection',
-        '--memory-pressure-off', // Important for Pi 2B
         // Remove automation indicators
         '--disable-infobars',
         '--window-size=1920,1080',
+        '--disable-extensions',
       ],
       ignoreHTTPSErrors: true,
     });
@@ -182,14 +170,13 @@ app.post('/scrape', authenticate, async (req, res) => {
     console.log(`[Scraper] Navigating to: ${url}`);
     
     // First, visit a simple page to establish a "session" (like a real browser would)
-    // Reduced timeout and waits for Pi 2B speed
     try {
-      await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: 10000 });
-      await page.waitForTimeout(1000 + Math.random() * 1000); // Reduced: 1-2 seconds instead of 2-5
+      await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.waitForTimeout(2000 + Math.random() * 2000); // 2-4 seconds
       
-      // Minimal interaction on Google
-      await page.mouse.move(100 + Math.random() * 100, 100 + Math.random() * 100);
-      await page.waitForTimeout(300);
+      // Simulate interaction on Google
+      await page.mouse.move(100 + Math.random() * 200, 100 + Math.random() * 200);
+      await page.waitForTimeout(500 + Math.random() * 1000);
     } catch (e) {
       // Ignore if Google is blocked, continue anyway
       console.log('[Scraper] Could not establish session, continuing...');
@@ -219,24 +206,24 @@ app.post('/scrape', authenticate, async (req, res) => {
       }
     }
 
-    // Wait a bit for initial page load (reduced for Pi 2B speed)
-    await page.waitForTimeout(1000 + Math.random() * 1000);
+    // Wait a bit for initial page load
+    await page.waitForTimeout(2000 + Math.random() * 2000);
 
-    // Simulate human-like behavior: minimal for speed
+    // Simulate human-like behavior
     await page.mouse.move(50 + Math.random() * 200, 50 + Math.random() * 200);
-    await page.waitForTimeout(200 + Math.random() * 300);
+    await page.waitForTimeout(300 + Math.random() * 700);
     
-    // Scroll down (reduced steps for Pi 2B speed)
-    const scrollSteps = 2; // Reduced from 3-6 to just 2
+    // Scroll down gradually (like a human would)
+    const scrollSteps = 3 + Math.floor(Math.random() * 3); // 3-6 steps
     for (let i = 0; i < scrollSteps; i++) {
       await page.evaluate(() => {
-        window.scrollBy(0, 300);
+        window.scrollBy(0, 200 + Math.random() * 300);
       });
-      await page.waitForTimeout(300 + Math.random() * 500);
+      await page.waitForTimeout(500 + Math.random() * 1000);
     }
     
-    // Wait for network to settle (reduced for speed)
-    await page.waitForTimeout(2000);
+    // Wait for network to settle
+    await page.waitForTimeout(3000);
 
     // Wait for JavaScript to execute (helps with Cloudflare challenges)
     if (wait > 0) {
@@ -266,19 +253,17 @@ app.post('/scrape', authenticate, async (req, res) => {
     }
     
     if (cloudflareDetected) {
-      console.log('[Scraper] Cloudflare challenge detected, waiting up to 40 seconds...');
+      console.log('[Scraper] Cloudflare challenge detected, waiting up to 30 seconds...');
       
-      // Wait longer for Cloudflare challenges (Pi 2B is slow, need more time)
-      for (let i = 0; i < 8; i++) { // Increased to 8 checks (40 seconds total)
+      // Wait longer and check multiple times (VPS is faster, can handle more checks)
+      for (let i = 0; i < 6; i++) { // 6 checks = 30 seconds
         await page.waitForTimeout(5000); // Wait 5 seconds
         
-        // Minimal interaction to help pass challenge
-        if (i % 2 === 0) { // Only interact every other check
-          await page.mouse.move(100 + Math.random() * 200, 100 + Math.random() * 200);
-          await page.evaluate(() => {
-            window.scrollTo(0, Math.min(500, document.body.scrollHeight));
-          });
-        }
+        // Interact to help pass challenge
+        await page.mouse.move(100 + Math.random() * 300, 100 + Math.random() * 300);
+        await page.evaluate(() => {
+          window.scrollTo(0, Math.random() * document.body.scrollHeight);
+        });
         
         // Re-check if challenge is still present
         pageContent = await page.content();
@@ -292,11 +277,11 @@ app.post('/scrape', authenticate, async (req, res) => {
         
         if (!stillBlocked) {
           console.log('[Scraper] Cloudflare challenge appears to have passed');
-          await page.waitForTimeout(1000); // Reduced wait
+          await page.waitForTimeout(2000); // Give it a moment to fully load
           break;
         }
         
-        console.log(`[Scraper] Still waiting for Cloudflare challenge (${i + 1}/8)...`);
+        console.log(`[Scraper] Still waiting for Cloudflare challenge (${i + 1}/6)...`);
       }
       
       // Final check
