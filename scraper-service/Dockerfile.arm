@@ -47,10 +47,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (use npm install since we don't have package-lock.json)
+# For production, omit dev dependencies
+RUN npm install --omit=dev
 
 # Copy application code
 COPY server.js ./
