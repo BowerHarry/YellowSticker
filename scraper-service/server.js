@@ -57,8 +57,10 @@ app.post('/scrape', authenticate, async (req, res) => {
     // Use system Chromium on ARM (Raspberry Pi) if available
     const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
     
+    // Enhanced Undetected Chrome configuration
+    // Use 'new' headless mode which is harder to detect than old headless
     browser = await puppeteer.launch({
-      headless: true,
+      headless: 'new', // New headless mode (harder to detect)
       executablePath: executablePath, // Use system Chromium on ARM
       args: [
         '--no-sandbox',
@@ -69,6 +71,10 @@ app.post('/scrape', authenticate, async (req, res) => {
         '--no-zygote', // Saves memory on Pi
         '--disable-gpu',
         '--disable-blink-features=AutomationControlled',
+        // Enhanced stealth args
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
         // Additional args for ARM/Raspberry Pi
         '--disable-software-rasterizer',
         '--disable-extensions',
@@ -79,7 +85,11 @@ app.post('/scrape', authenticate, async (req, res) => {
         '--disable-features=TranslateUI',
         '--disable-ipc-flooding-protection',
         '--memory-pressure-off', // Important for Pi 2B
+        // Remove automation indicators
+        '--disable-infobars',
+        '--window-size=1920,1080',
       ],
+      ignoreHTTPSErrors: true,
     });
 
     const page = await browser.newPage();
@@ -87,11 +97,11 @@ app.post('/scrape', authenticate, async (req, res) => {
     // Set realistic viewport (common desktop resolution)
     await page.setViewport({ width: 1920, height: 1080 });
     
-    // Override navigator properties to look more like a real browser
+    // Enhanced Undetected Chrome: Override navigator properties to look more like a real browser
     await page.evaluateOnNewDocument(() => {
-      // Remove webdriver property
+      // Remove webdriver property completely (not just set to false)
       Object.defineProperty(navigator, 'webdriver', {
-        get: () => false,
+        get: () => undefined,
       });
       
       // Override plugins to look like a real browser
@@ -104,9 +114,12 @@ app.post('/scrape', authenticate, async (req, res) => {
         get: () => ['en-GB', 'en', 'en-US'],
       });
       
-      // Add chrome object (Chrome-specific)
+      // Enhanced Chrome object (more complete)
       window.chrome = {
         runtime: {},
+        loadTimes: function() {},
+        csi: function() {},
+        app: {}
       };
       
       // Override permissions
@@ -116,12 +129,40 @@ app.post('/scrape', authenticate, async (req, res) => {
           Promise.resolve({ state: Notification.permission }) :
           originalQuery(parameters)
       );
+      
+      // Override platform
+      Object.defineProperty(navigator, 'platform', {
+        get: () => 'Linux x86_64',
+      });
+      
+      // Override hardwareConcurrency (make it realistic)
+      Object.defineProperty(navigator, 'hardwareConcurrency', {
+        get: () => 4,
+      });
+      
+      // Override deviceMemory
+      Object.defineProperty(navigator, 'deviceMemory', {
+        get: () => 8,
+      });
     });
 
-    // Set user agent (use a more recent Chrome version)
+    // Set realistic user agent (matching Chrome 131)
     await page.setUserAgent(
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
     );
+    
+    // Set additional browser properties
+    await page.evaluateOnNewDocument(() => {
+      // Override getBattery to return realistic values
+      if (navigator.getBattery) {
+        navigator.getBattery = () => Promise.resolve({
+          charging: true,
+          chargingTime: 0,
+          dischargingTime: Infinity,
+          level: 0.8,
+        });
+      }
+    });
 
     // Set extra headers to look more like a real browser
     await page.setExtraHTTPHeaders({
