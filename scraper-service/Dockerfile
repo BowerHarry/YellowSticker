@@ -53,8 +53,9 @@ RUN npm install --omit=dev
 # Copy application code
 COPY server.js ./
 
-# Create non-root user for security
-RUN useradd -m -u 1000 scraper && chown -R scraper:scraper /app
+# Create non-root user for security (avoid UID conflicts)
+RUN id -u scraper &>/dev/null || useradd -m scraper \
+    && chown -R scraper:scraper /app
 USER scraper
 
 EXPOSE 3000
