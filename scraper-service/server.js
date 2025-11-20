@@ -41,7 +41,7 @@ app.get('/health', (req, res) => {
 // Main scraping endpoint - SIMPLIFIED: Just returns raw HTML, no processing
 // All HTML parsing and processing happens in Supabase Edge Functions
 app.post('/scrape', authenticate, async (req, res) => {
-  const { url, wait = 15000, timeout = 60000 } = req.body;
+  const { url, wait = 15000, timeout = 120000 } = req.body; // Increased default timeout to 120s for Cloudflare
   
   if (!url) {
     return res.status(400).json({ error: 'Missing required parameter: url' });
@@ -142,25 +142,59 @@ app.post('/scrape', authenticate, async (req, res) => {
     
     // First, visit a simple page to establish a "session" (like a real browser would)
     try {
-      await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: 10000 });
-      await page.waitForTimeout(1000 + Math.random() * 2000); // Random delay 1-3 seconds
+      await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.waitForTimeout(2000 + Math.random() * 3000); // Random delay 2-5 seconds
+      
+      // Simulate some interaction on Google
+      await page.mouse.move(100 + Math.random() * 200, 100 + Math.random() * 200);
+      await page.waitForTimeout(500 + Math.random() * 1000);
     } catch (e) {
       // Ignore if Google is blocked, continue anyway
       console.log('[Scraper] Could not establish session, continuing...');
     }
     
-    // Now navigate to the target URL
-    await page.goto(url, {
-      waitUntil: 'networkidle2',
-      timeout: timeout,
-    });
+    // Now navigate to the target URL with more lenient timeout
+    // Use 'domcontentloaded' first, then wait for networkidle
+    let navigationSuccess = false;
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (!navigationSuccess && retries < maxRetries) {
+      try {
+        await page.goto(url, {
+          waitUntil: 'domcontentloaded',
+          timeout: timeout,
+        });
+        navigationSuccess = true;
+      } catch (error) {
+        if (error.message.includes('Navigation timeout') && retries < maxRetries - 1) {
+          console.log(`[Scraper] Navigation timeout, retrying (${retries + 1}/${maxRetries})...`);
+          retries++;
+          await page.waitForTimeout(5000);
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    // Wait a bit for initial page load
+    await page.waitForTimeout(2000 + Math.random() * 2000);
 
     // Simulate human-like behavior: mouse movements and scrolling
-    await page.mouse.move(Math.random() * 100, Math.random() * 100);
-    await page.evaluate(() => {
-      window.scrollTo(0, Math.random() * 500);
-    });
-    await page.waitForTimeout(500 + Math.random() * 1000);
+    await page.mouse.move(50 + Math.random() * 200, 50 + Math.random() * 200);
+    await page.waitForTimeout(300 + Math.random() * 700);
+    
+    // Scroll down gradually (like a human would)
+    const scrollSteps = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < scrollSteps; i++) {
+      await page.evaluate(() => {
+        window.scrollBy(0, 200 + Math.random() * 300);
+      });
+      await page.waitForTimeout(500 + Math.random() * 1000);
+    }
+    
+    // Wait for network to settle (Puppeteer doesn't have waitForLoadState, use waitForTimeout)
+    await page.waitForTimeout(3000);
 
     // Wait for JavaScript to execute (helps with Cloudflare challenges)
     if (wait > 0) {
@@ -168,22 +202,95 @@ app.post('/scrape', authenticate, async (req, res) => {
       await page.waitForTimeout(wait);
     }
     
-    // Additional wait if Cloudflare challenge might be present
-    // Check for common Cloudflare indicators and wait longer if needed
-    const pageContent = await page.content();
-    if (pageContent.includes('Just a moment') || pageContent.includes('cf-challenge')) {
-      console.log('[Scraper] Cloudflare challenge detected, waiting longer...');
-      await page.waitForTimeout(10000); // Wait 10 more seconds
-      // Scroll and interact to help pass challenge
-      await page.evaluate(() => {
-        window.scrollTo(0, document.body.scrollHeight);
-      });
-      await page.waitForTimeout(5000);
+    // Check for Cloudflare challenge and wait longer if needed
+    let pageContent = await page.content();
+    let cloudflareDetected = false;
+    
+    // Check for Cloudflare indicators
+    const cloudflareIndicators = [
+      'Just a moment',
+      'cf-challenge',
+      'Checking your browser',
+      'DDoS protection by Cloudflare',
+      'cf-browser-verification',
+      'cf_clearance',
+    ];
+    
+    for (const indicator of cloudflareIndicators) {
+      if (pageContent.includes(indicator)) {
+        cloudflareDetected = true;
+        break;
+      }
+    }
+    
+    if (cloudflareDetected) {
+      console.log('[Scraper] Cloudflare challenge detected, waiting up to 30 seconds...');
+      
+      // Wait longer and check multiple times
+      for (let i = 0; i < 6; i++) {
+        await page.waitForTimeout(5000); // Wait 5 seconds
+        
+        // Scroll and interact to help pass challenge
+        await page.mouse.move(100 + Math.random() * 300, 100 + Math.random() * 300);
+        await page.evaluate(() => {
+          window.scrollTo(0, Math.random() * document.body.scrollHeight);
+        });
+        
+        // Re-check if challenge is still present
+        pageContent = await page.content();
+        let stillBlocked = false;
+        for (const indicator of cloudflareIndicators) {
+          if (pageContent.includes(indicator)) {
+            stillBlocked = true;
+            break;
+          }
+        }
+        
+        if (!stillBlocked) {
+          console.log('[Scraper] Cloudflare challenge appears to have passed');
+          await page.waitForTimeout(2000); // Give it a moment to fully load
+          break;
+        }
+        
+        console.log(`[Scraper] Still waiting for Cloudflare challenge (${i + 1}/6)...`);
+      }
+      
+      // Final check
+      pageContent = await page.content();
+      for (const indicator of cloudflareIndicators) {
+        if (pageContent.includes(indicator)) {
+          console.warn('[Scraper] Cloudflare challenge still present after waiting');
+          // Don't throw here - let Supabase handle it
+        }
+      }
     }
 
     // Get the raw HTML - no processing, just return it
     // Supabase Edge Functions will do all the parsing and processing
-    const html = await page.content();
+    // Use try-catch to handle frame detached errors
+    let html;
+    try {
+      html = await page.content();
+    } catch (error) {
+      if (error.message.includes('frame') || error.message.includes('detached')) {
+        console.warn('[Scraper] Frame detached error, trying to recover...');
+        // Try to get content from the main frame
+        try {
+          const frames = page.frames();
+          const mainFrame = frames.find(f => f === page.mainFrame()) || frames[0];
+          if (mainFrame) {
+            html = await mainFrame.content();
+          } else {
+            throw new Error('Could not recover from frame detached error');
+          }
+        } catch (recoveryError) {
+          throw new Error(`Frame detached and could not recover: ${recoveryError.message}`);
+        }
+      } else {
+        throw error;
+      }
+    }
+    
     const elapsed = Date.now() - startTime;
 
     console.log(`[Scraper] Successfully fetched HTML for ${url} in ${elapsed}ms (${html.length} bytes)`);
@@ -202,8 +309,50 @@ app.post('/scrape', authenticate, async (req, res) => {
     const elapsed = Date.now() - startTime;
     console.error(`[Scraper] Error fetching ${url} after ${elapsed}ms:`, error.message);
     
-    // Check if it's a Cloudflare challenge
-    if (error.message.includes('CLOUDFLARE_BLOCKED') || error.message.includes('net::ERR')) {
+    // Try to get page content even if there was an error (might still have useful HTML)
+    let errorHtml = null;
+    if (browser) {
+      try {
+        const pages = await browser.pages();
+        if (pages.length > 0) {
+          errorHtml = await pages[0].content();
+          // Check if it's actually a Cloudflare challenge
+          if (errorHtml && (
+            errorHtml.includes('Just a moment') ||
+            errorHtml.includes('cf-challenge') ||
+            errorHtml.includes('Checking your browser')
+          )) {
+            console.warn('[Scraper] Detected Cloudflare challenge in error response');
+            res.status(500).json({
+              success: false,
+              error: 'CLOUDFLARE_BLOCKED',
+              url: url,
+              elapsed_ms: elapsed,
+            });
+            return;
+          }
+        }
+      } catch (e) {
+        // Ignore errors when trying to get error HTML
+      }
+    }
+    
+    // Check if it's a timeout or navigation error
+    if (error.message.includes('Navigation timeout') || error.message.includes('timeout')) {
+      res.status(500).json({
+        success: false,
+        error: `Navigation timeout: ${error.message}`,
+        url: url,
+        elapsed_ms: elapsed,
+      });
+    } else if (error.message.includes('frame') || error.message.includes('detached')) {
+      res.status(500).json({
+        success: false,
+        error: `Frame detached: ${error.message}`,
+        url: url,
+        elapsed_ms: elapsed,
+      });
+    } else if (error.message.includes('CLOUDFLARE_BLOCKED') || error.message.includes('net::ERR')) {
       res.status(500).json({
         success: false,
         error: 'CLOUDFLARE_BLOCKED',
@@ -220,7 +369,11 @@ app.post('/scrape', authenticate, async (req, res) => {
     }
   } finally {
     if (browser) {
-      await browser.close();
+      try {
+        await browser.close();
+      } catch (e) {
+        console.error('[Scraper] Error closing browser:', e.message);
+      }
     }
   }
 });

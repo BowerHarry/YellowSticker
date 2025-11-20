@@ -221,7 +221,7 @@ const fetchWithSelfHosted = async (
       body: JSON.stringify({
         url: targetUrl,
         wait: parseInt(wait, 10),
-        timeout: 60000,
+        timeout: 120000, // Increased to 120s to handle Cloudflare challenges
       }),
       signal: controller.signal,
     });
