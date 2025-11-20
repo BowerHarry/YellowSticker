@@ -201,11 +201,17 @@ const fetchWithSelfHosted = async (
   }
 
   const wait = Deno.env.get('SCRAPINGBEE_WAIT') || '15000';
-  const apiUrl = `${serviceUrl}/scrape`;
+  // Remove trailing slash from serviceUrl to avoid double slashes
+  const cleanServiceUrl = serviceUrl.replace(/\/+$/, '');
+  const apiUrl = `${cleanServiceUrl}/scrape`;
   
-  console.log(`[Self-Hosted] Fetching via ${serviceUrl} with wait=${wait}ms`);
+  console.log(`[Self-Hosted] Fetching via ${cleanServiceUrl} with wait=${wait}ms`);
   
   try {
+    // Pi scraper can take 20-40 seconds, so use a longer timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -217,7 +223,10 @@ const fetchWithSelfHosted = async (
         wait: parseInt(wait, 10),
         timeout: 60000,
       }),
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -315,78 +324,20 @@ const fetchRenderedHtml = async (
 ): Promise<string> => {
   const maxRetries = 1; // Retry once for server errors
   
+  // ONLY use self-hosted Pi scraper - no fallbacks to ScrapingBee/ScraperAPI
   try {
-    // Try ScrapingBee first with different configurations
-    let countryCode = getRandomCountryCode();
-    if (previousCountryCode && countryCode === previousCountryCode) {
-      // If we got the same country code, pick a different one
-      countryCode = getRandomCountryCode();
+    const selfHostedResult = await fetchWithSelfHosted(targetUrl);
+    if (selfHostedResult) {
+      console.log(`Fetched rendered HTML via self-hosted scraper (Pi) for ${targetUrl}`);
+      return selfHostedResult;
     }
-    
-    const scrapingbeeResult = await fetchWithScrapingBee(targetUrl, countryCode, scrapingBeeConfig);
-    if (scrapingbeeResult) {
-      // Check if we got a queue page - retry with longer wait if we haven't already
-      if (isQueuePage(scrapingbeeResult) && !triedQueueRetry) {
-        console.warn('Queue page detected, retrying with different country code...');
-        const delayWithJitter = addJitter(5, 0.3); // 5 seconds ± 30% jitter
-        await new Promise((resolve) => setTimeout(resolve, delayWithJitter * 1000));
-        // Retry with a different country code
-        return fetchRenderedHtml(targetUrl, retryCount, countryCode, true, scrapingBeeConfig);
-      }
-      
-      console.log(`Fetched rendered HTML via ScrapingBee for ${targetUrl}`);
-      return scrapingbeeResult;
-    }
-  } catch (error) {
-    const errorMessage = (error as Error).message;
-    
-    // If stealth_proxy fails with Cloudflare, try premium_proxy as fallback
-    if (errorMessage.includes('SCRAPINGBEE_CLOUDFLARE_BLOCKED')) {
-      if (!scrapingBeeConfig?.usePremiumProxy && !scrapingBeeConfig?.useResidentialProxy) {
-        console.warn('ScrapingBee stealth_proxy blocked, trying premium_proxy as fallback...');
-        const delayWithJitter = addJitter(2, 0.2); // 2 seconds ± 20% jitter
-        await new Promise((resolve) => setTimeout(resolve, delayWithJitter * 1000));
-        try {
-          return await fetchRenderedHtml(targetUrl, retryCount, previousCountryCode, triedQueueRetry, { usePremiumProxy: true });
-        } catch (premiumError) {
-          console.warn('ScrapingBee premium_proxy also failed, trying ScraperAPI...');
-          // Fall through to try ScraperAPI
-        }
-      } else {
-        console.warn('ScrapingBee failed with all proxy types, trying ScraperAPI...');
-      }
-      
-      // Try ScraperAPI as fallback
-      try {
-        const scraperApiResult = await fetchWithScraperAPI(targetUrl);
-        if (scraperApiResult) {
-          console.log(`Fetched rendered HTML via ScraperAPI for ${targetUrl}`);
-          return scraperApiResult;
-        }
-      } catch (scraperApiError) {
-        console.warn('ScraperAPI also failed, trying self-hosted scraper...');
-        // Fall through to try self-hosted
-      }
-      
-      // Try self-hosted scraper as final fallback
-      try {
-        const selfHostedResult = await fetchWithSelfHosted(targetUrl);
-        if (selfHostedResult) {
-          console.log(`Fetched rendered HTML via self-hosted scraper for ${targetUrl}`);
-          return selfHostedResult;
-        }
-      } catch (selfHostedError) {
-        console.error('Self-hosted scraper also failed:', selfHostedError);
-        // Fall through to throw original error
-      }
-      
-      // If all methods fail, throw the original error
-      throw error;
-    }
+  } catch (selfHostedError) {
+    const errorMessage = (selfHostedError as Error).message;
+    console.error('Self-hosted scraper (Pi) failed:', errorMessage);
     
     // Handle rate limit - wait and retry
-    if (errorMessage.includes('SCRAPINGBEE_RATE_LIMIT') || errorMessage.includes('429')) {
-      console.warn('ScrapingBee rate limit hit, waiting 60 seconds before retry...');
+    if (errorMessage.includes('SELF_HOSTED_RATE_LIMIT') || errorMessage.includes('429')) {
+      console.warn('Pi scraper rate limit hit, waiting 60 seconds before retry...');
       const delayWithJitter = addJitter(60, 0.2); // 60 seconds ± 20% jitter
       await new Promise((resolve) => setTimeout(resolve, delayWithJitter * 1000));
       if (retryCount < maxRetries) {
@@ -395,8 +346,8 @@ const fetchRenderedHtml = async (
     }
     
     // Handle server errors - retry once
-    if (errorMessage.includes('SCRAPINGBEE_SERVER_ERROR')) {
-      console.warn('ScrapingBee server error, retrying...');
+    if (errorMessage.includes('SELF_HOSTED_SERVER_ERROR') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ETIMEDOUT')) {
+      console.warn('Pi scraper server error, retrying...');
       if (retryCount < maxRetries) {
         const delayWithJitter = addJitter(5, 0.3); // 5 seconds ± 30% jitter
         await new Promise((resolve) => setTimeout(resolve, delayWithJitter * 1000));
@@ -404,11 +355,11 @@ const fetchRenderedHtml = async (
       }
     }
     
-    console.error('ScrapingBee failed:', errorMessage);
-    throw error;
+    // For all other errors, throw immediately (no fallback to other services)
+    throw selfHostedError;
   }
   
-  throw new Error('All scraping methods failed - API keys may be invalid or quota exceeded');
+  throw new Error('Self-hosted scraper (Pi) returned null - check Pi service configuration');
 };
 
 type CalendarStandingScraperConfig = {
