@@ -39,15 +39,22 @@ RUN apt-get update && apt-get install -y \
     libxtst6 \
     lsb-release \
     xdg-utils \
+    chromium \
+    chromium-sandbox \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# Set environment variables BEFORE npm install to prevent Chromium download
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Copy package files
 COPY package.json ./
 
 # Install dependencies (use npm install since we don't have package-lock.json)
 # For production, omit dev dependencies
+# Chromium download is skipped via env var above
 RUN npm install --omit=dev
 
 # Copy application code
