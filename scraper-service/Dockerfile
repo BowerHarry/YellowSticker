@@ -54,8 +54,12 @@ RUN npm install --omit=dev
 COPY server.js ./
 
 # Create non-root user for security (avoid UID conflicts)
-RUN id -u scraper &>/dev/null || useradd -m scraper \
-    && chown -R scraper:scraper /app
+RUN if id -u scraper >/dev/null 2>&1; then \
+      echo "User scraper already exists"; \
+    else \
+      useradd -m scraper; \
+    fi && \
+    chown -R scraper:scraper /app
 USER scraper
 
 EXPOSE 3000
