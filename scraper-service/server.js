@@ -266,10 +266,10 @@ app.post('/scrape', authenticate, async (req, res) => {
     }
     
     if (cloudflareDetected) {
-      console.log('[Scraper] Cloudflare challenge detected, waiting up to 20 seconds...');
+      console.log('[Scraper] Cloudflare challenge detected, waiting up to 40 seconds...');
       
-      // Wait longer and check multiple times (reduced for Pi 2B speed)
-      for (let i = 0; i < 4; i++) { // Reduced from 6 to 4 checks
+      // Wait longer for Cloudflare challenges (Pi 2B is slow, need more time)
+      for (let i = 0; i < 8; i++) { // Increased to 8 checks (40 seconds total)
         await page.waitForTimeout(5000); // Wait 5 seconds
         
         // Minimal interaction to help pass challenge
@@ -296,7 +296,7 @@ app.post('/scrape', authenticate, async (req, res) => {
           break;
         }
         
-        console.log(`[Scraper] Still waiting for Cloudflare challenge (${i + 1}/4)...`);
+        console.log(`[Scraper] Still waiting for Cloudflare challenge (${i + 1}/8)...`);
       }
       
       // Final check
