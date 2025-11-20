@@ -208,9 +208,9 @@ const fetchWithSelfHosted = async (
   console.log(`[Self-Hosted] Fetching via ${cleanServiceUrl} with wait=${wait}ms`);
   
   try {
-    // Pi scraper can take 20-40 seconds, so use a longer timeout
+    // Pi scraper can take 2-4 minutes with Cloudflare challenges, so use a longer timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout (Pi 2B is slow)
     
     const response = await fetch(apiUrl, {
       method: 'POST',

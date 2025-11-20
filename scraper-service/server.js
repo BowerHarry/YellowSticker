@@ -182,13 +182,14 @@ app.post('/scrape', authenticate, async (req, res) => {
     console.log(`[Scraper] Navigating to: ${url}`);
     
     // First, visit a simple page to establish a "session" (like a real browser would)
+    // Reduced timeout and waits for Pi 2B speed
     try {
-      await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: 15000 });
-      await page.waitForTimeout(2000 + Math.random() * 3000); // Random delay 2-5 seconds
+      await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: 10000 });
+      await page.waitForTimeout(1000 + Math.random() * 1000); // Reduced: 1-2 seconds instead of 2-5
       
-      // Simulate some interaction on Google
-      await page.mouse.move(100 + Math.random() * 200, 100 + Math.random() * 200);
-      await page.waitForTimeout(500 + Math.random() * 1000);
+      // Minimal interaction on Google
+      await page.mouse.move(100 + Math.random() * 100, 100 + Math.random() * 100);
+      await page.waitForTimeout(300);
     } catch (e) {
       // Ignore if Google is blocked, continue anyway
       console.log('[Scraper] Could not establish session, continuing...');
@@ -218,24 +219,24 @@ app.post('/scrape', authenticate, async (req, res) => {
       }
     }
 
-    // Wait a bit for initial page load
-    await page.waitForTimeout(2000 + Math.random() * 2000);
+    // Wait a bit for initial page load (reduced for Pi 2B speed)
+    await page.waitForTimeout(1000 + Math.random() * 1000);
 
-    // Simulate human-like behavior: mouse movements and scrolling
+    // Simulate human-like behavior: minimal for speed
     await page.mouse.move(50 + Math.random() * 200, 50 + Math.random() * 200);
-    await page.waitForTimeout(300 + Math.random() * 700);
+    await page.waitForTimeout(200 + Math.random() * 300);
     
-    // Scroll down gradually (like a human would)
-    const scrollSteps = 3 + Math.floor(Math.random() * 3);
+    // Scroll down (reduced steps for Pi 2B speed)
+    const scrollSteps = 2; // Reduced from 3-6 to just 2
     for (let i = 0; i < scrollSteps; i++) {
       await page.evaluate(() => {
-        window.scrollBy(0, 200 + Math.random() * 300);
+        window.scrollBy(0, 300);
       });
-      await page.waitForTimeout(500 + Math.random() * 1000);
+      await page.waitForTimeout(300 + Math.random() * 500);
     }
     
-    // Wait for network to settle (Puppeteer doesn't have waitForLoadState, use waitForTimeout)
-    await page.waitForTimeout(3000);
+    // Wait for network to settle (reduced for speed)
+    await page.waitForTimeout(2000);
 
     // Wait for JavaScript to execute (helps with Cloudflare challenges)
     if (wait > 0) {
@@ -265,17 +266,19 @@ app.post('/scrape', authenticate, async (req, res) => {
     }
     
     if (cloudflareDetected) {
-      console.log('[Scraper] Cloudflare challenge detected, waiting up to 30 seconds...');
+      console.log('[Scraper] Cloudflare challenge detected, waiting up to 20 seconds...');
       
-      // Wait longer and check multiple times
-      for (let i = 0; i < 6; i++) {
+      // Wait longer and check multiple times (reduced for Pi 2B speed)
+      for (let i = 0; i < 4; i++) { // Reduced from 6 to 4 checks
         await page.waitForTimeout(5000); // Wait 5 seconds
         
-        // Scroll and interact to help pass challenge
-        await page.mouse.move(100 + Math.random() * 300, 100 + Math.random() * 300);
-        await page.evaluate(() => {
-          window.scrollTo(0, Math.random() * document.body.scrollHeight);
-        });
+        // Minimal interaction to help pass challenge
+        if (i % 2 === 0) { // Only interact every other check
+          await page.mouse.move(100 + Math.random() * 200, 100 + Math.random() * 200);
+          await page.evaluate(() => {
+            window.scrollTo(0, Math.min(500, document.body.scrollHeight));
+          });
+        }
         
         // Re-check if challenge is still present
         pageContent = await page.content();
@@ -289,11 +292,11 @@ app.post('/scrape', authenticate, async (req, res) => {
         
         if (!stillBlocked) {
           console.log('[Scraper] Cloudflare challenge appears to have passed');
-          await page.waitForTimeout(2000); // Give it a moment to fully load
+          await page.waitForTimeout(1000); // Reduced wait
           break;
         }
         
-        console.log(`[Scraper] Still waiting for Cloudflare challenge (${i + 1}/6)...`);
+        console.log(`[Scraper] Still waiting for Cloudflare challenge (${i + 1}/4)...`);
       }
       
       // Final check
