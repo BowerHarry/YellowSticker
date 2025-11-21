@@ -39,39 +39,39 @@ RUN apt-get update && apt-get install -y \
     libxtst6 \
     lsb-release \
     xdg-utils \
-    chromium \
-    chromium-sandbox \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Set environment variables BEFORE npm install to prevent Chromium download
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-
 # Copy package files
 COPY package.json ./
 
-# Install dependencies (use npm install since we don't have package-lock.json)
-# For production, omit dev dependencies
-# Chromium download is skipped via env var above
-RUN npm install --omit=dev
-
-# Copy application code
-COPY server.js ./
-
-# Create non-root user for security (avoid UID conflicts)
+# Create non-root user for security (before installing dependencies)
 RUN if id -u scraper >/dev/null 2>&1; then \
       echo "User scraper already exists"; \
     else \
       useradd -m scraper; \
-    fi && \
-    chown -R scraper:scraper /app && \
-    # Ensure Chromium is accessible (check both possible paths)
-    (test -f /usr/bin/chromium && chmod +x /usr/bin/chromium || true) && \
-    (test -f /usr/bin/chromium-browser && chmod +x /usr/bin/chromium-browser || true) && \
-    # Create symlink if chromium-browser exists but chromium doesn't
-    (test ! -f /usr/bin/chromium && test -f /usr/bin/chromium-browser && ln -s /usr/bin/chromium-browser /usr/bin/chromium || true)
+    fi
+
+# Install dependencies (use npm install since we don't have package-lock.json)
+# For production, omit dev dependencies
+# Puppeteer will download Chrome automatically
+RUN npm install --omit=dev
+
+# Switch to scraper user to install Chrome in their home directory
+USER scraper
+
+# Install Chrome via Puppeteer (as scraper user, so it goes to /home/scraper/.cache/puppeteer)
+RUN npx puppeteer browsers install chrome
+
+# Switch back to root to copy files and set permissions
+USER root
+
+# Copy application code and set permissions
+COPY server.js ./
+RUN chown -R scraper:scraper /app
+
+# Switch back to scraper user for runtime
 USER scraper
 
 EXPOSE 3000

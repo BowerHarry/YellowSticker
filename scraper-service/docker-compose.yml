@@ -8,8 +8,6 @@ services:
     environment:
       - PORT=3000
       - API_KEY=${API_KEY}
-      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
     # Resource limits to prevent runaway processes
     deploy:
       resources:
