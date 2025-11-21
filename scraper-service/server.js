@@ -3,6 +3,7 @@ import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import AnonymizeUAPlugin from 'puppeteer-extra-plugin-anonymize-ua';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -55,7 +56,28 @@ app.post('/scrape', authenticate, async (req, res) => {
     
     // Enhanced Undetected Chrome configuration for VPS
     // Use 'new' headless mode which is harder to detect than old headless
-    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+    // Try multiple possible Chromium paths
+    let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    if (!executablePath) {
+      // Try common Chromium paths
+      const possiblePaths = [
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+      ];
+      for (const path of possiblePaths) {
+        try {
+          if (fs.existsSync(path) && fs.statSync(path).isFile()) {
+            executablePath = path;
+            console.log(`[Scraper] Found Chromium at: ${path}`);
+            break;
+          }
+        } catch (e) {
+          // Continue to next path
+        }
+      }
+    }
     
     browser = await puppeteer.launch({
       headless: 'new', // New headless mode (harder to detect)

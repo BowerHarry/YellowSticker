@@ -66,7 +66,12 @@ RUN if id -u scraper >/dev/null 2>&1; then \
     else \
       useradd -m scraper; \
     fi && \
-    chown -R scraper:scraper /app
+    chown -R scraper:scraper /app && \
+    # Ensure Chromium is accessible (check both possible paths)
+    (test -f /usr/bin/chromium && chmod +x /usr/bin/chromium || true) && \
+    (test -f /usr/bin/chromium-browser && chmod +x /usr/bin/chromium-browser || true) && \
+    # Create symlink if chromium-browser exists but chromium doesn't
+    (test ! -f /usr/bin/chromium && test -f /usr/bin/chromium-browser && ln -s /usr/bin/chromium-browser /usr/bin/chromium || true)
 USER scraper
 
 EXPOSE 3000
