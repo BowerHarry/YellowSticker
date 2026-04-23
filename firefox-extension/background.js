@@ -164,22 +164,12 @@ const fetchDelfontJSON = async (path, { referer } = {}) => {
 // HTML counterpart. Used to discover today's EventIDs by parsing the
 // server-rendered calendar page rather than guessing an API shape.
 //
-// Challenge detection is deliberately narrow: Delfont's real site is fronted
-// by Cloudflare and its normal HTML legitimately mentions "cloudflare" in
-// script URLs and headers references. Only the patterns below are unique to
-// interstitial pages.
-const CHALLENGE_MARKERS = [
-  /<title>\s*Just a moment/i, //  CF JS challenge
-  /<title>\s*Attention Required/i, //  CF 1015 block / WAF deny
-  /\/cdn-cgi\/challenge-platform\//i, //  CF Turnstile / managed challenge iframe
-  /window\._cf_chl_opt\b/i, //  CF challenge inline bootstrap
-  /cf-mitigated/i, //  CF mitigation page fragment
-  /queue-it\.net\/(softblock|pollhbanditssdk|challengeapi)/i, //  Queue-it waiting-room
-  /<title>\s*You are now in line/i, //  Queue-it visible title
-];
-
-const looksLikeChallenge = (html) => CHALLENGE_MARKERS.some((re) => re.test(html));
-
+// We intentionally do NOT sniff the body for challenge markers here — the
+// normal Delfont page is Cloudflare-fronted and includes e.g. a preloaded
+// Turnstile script, which previously tripped a false challenge detection on
+// every request. Instead we only flag the obvious, unambiguous cases
+// (non-HTML content-type, 403/503 status). The caller then decides based on
+// whether the parsed DOM actually contains what we expect.
 const fetchDelfontHTML = async (url) => {
   const resp = await fetch(url, {
     method: 'GET',
@@ -199,24 +189,28 @@ const fetchDelfontHTML = async (url) => {
     });
   }
   const text = await resp.text();
-  // A genuine block/challenge often comes with 403/503 too — treat those as
-  // challenges so the self-healing path kicks in.
   if (resp.status === 403 || resp.status === 503) {
     throw new ChallengeError(`Delfont HTML ${resp.status} (likely challenge)`, {
       url,
       status: resp.status,
-      snippet: text.slice(0, 200),
+      snippet: text.slice(0, 300),
     });
   }
   if (!resp.ok) throw new Error(`Delfont HTML ${resp.status}: ${url}`);
-  if (looksLikeChallenge(text)) {
-    throw new ChallengeError('Challenge/queue page returned instead of calendar', {
-      url,
-      snippet: text.slice(0, 200),
-    });
-  }
   return text;
 };
+
+// Narrow markers for the cases where we DO have 200 HTML but it's actually
+// an interstitial. Only checked after we've failed to parse anything useful
+// out of the document, to avoid the previous over-triggering.
+const CHALLENGE_MARKERS = [
+  /<title>\s*Just a moment/i,
+  /<title>\s*Attention Required/i,
+  /<title>\s*You are now in line/i,
+  /window\._cf_chl_opt\b/,
+  /queue-it\.net\/(softblock|challengeapi)/i,
+];
+const looksLikeChallenge = (html) => CHALLENGE_MARKERS.some((re) => re.test(html));
 
 // Open a hidden background tab to the production's public URL. The real
 // browser will execute any CF JS challenge silently, refreshing cookies,
@@ -333,6 +327,8 @@ const extractPerformanceIdFromElement = (el) => {
 const extractTodayEventIdsFromHTML = (html, today) => {
   const { year, month, day, monthLong } = today;
   const doc = new DOMParser().parseFromString(html, 'text/html');
+  const title = (doc.querySelector('title')?.textContent ?? '').trim();
+  const totalCalendarEvents = doc.querySelectorAll('calendar-event').length;
 
   // Try a handful of aria-label spellings — Delfont's template formats it
   // slightly differently between venues / seasons.
@@ -346,6 +342,17 @@ const extractTodayEventIdsFromHTML = (html, today) => {
   for (const label of labels) {
     tray = doc.querySelector(`[aria-label="${label}"]`);
     if (tray) break;
+  }
+
+  // Positive signal: if the page has NO <calendar-event> elements at all AND
+  // looks like a known interstitial, treat it as a challenge so the
+  // self-healing refresh kicks in. Otherwise, assume the page rendered fine
+  // and we're legitimately looking at a day with no standing performances.
+  if (totalCalendarEvents === 0 && looksLikeChallenge(html)) {
+    throw new ChallengeError('Calendar HTML appears to be a challenge page', {
+      title,
+      length: html.length,
+    });
   }
 
   const eventNodes = tray
@@ -375,7 +382,13 @@ const extractTodayEventIdsFromHTML = (html, today) => {
     const id = extractPerformanceIdFromElement(node);
     if (id) found.add(id);
   }
-  return { trayFound: !!tray, eventIds: [...found] };
+  return {
+    trayFound: !!tray,
+    eventIds: [...found],
+    totalCalendarEvents,
+    title,
+    htmlLength: html.length,
+  };
 };
 
 /**
@@ -446,20 +459,46 @@ const scrapeDelfontProduction = async (production) => {
     };
   }
 
-  const { trayFound, eventIds: todayIds } = extractTodayEventIdsFromHTML(html, today);
+  let parsed;
+  try {
+    parsed = extractTodayEventIdsFromHTML(html, today);
+  } catch (err) {
+    if (err instanceof ChallengeError) {
+      // Second-chance: refresh cookies and retry the whole HTML fetch.
+      log(`[${name}] parser flagged challenge, refreshing cookies`);
+      await refreshCookiesViaHiddenTab(productionUrl);
+      try {
+        const retryHtml = await fetchDelfontHTML(productionUrl);
+        parsed = extractTodayEventIdsFromHTML(retryHtml, today);
+      } catch (err2) {
+        return {
+          productionId: id,
+          status: 'error',
+          reason: 'cloudflare_or_queueit',
+          detail: { message: err2.message, challenge: err2.detail ?? null },
+        };
+      }
+    } else {
+      throw err;
+    }
+  }
+
+  const { trayFound, eventIds: todayIds, totalCalendarEvents, title, htmlLength } = parsed;
   log(
-    `[${name}] calendar HTML parsed: tray ${trayFound ? 'found' : 'NOT found'}, ` +
-      `${todayIds.length} performance(s) for ${today.iso}`,
+    `[${name}] calendar parsed: tray=${trayFound}, ` +
+      `todayEvents=${todayIds.length}, totalEventsOnPage=${totalCalendarEvents}, ` +
+      `title="${title}", bytes=${htmlLength}`,
   );
 
   if (todayIds.length === 0) {
     return {
       productionId: id,
       status: 'unavailable',
-      reason: trayFound ? 'no_performances_today' : 'tray_not_found',
+      reason: trayFound ? 'no_performances_today' : 'no_tray_today',
       performanceCount: 0,
       standCount: 0,
       performances: [],
+      detail: { totalCalendarEvents, title, htmlLength },
     };
   }
 
