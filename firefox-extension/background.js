@@ -76,22 +76,39 @@ const log = (...args) => console.log('[yellow-sticker]', ...args);
 const warn = (...args) => console.warn('[yellow-sticker]', ...args);
 const error = (...args) => console.error('[yellow-sticker]', ...args);
 
-// Today in Europe/London, formatted both as YYYY-MM-DD (for comparisons with
-// the Delfont API's ISO date strings) and MM-DD-YYYY (Delfont URL convention).
+// Today in Europe/London. We need several representations because Delfont's
+// HTML uses aria-label strings like "Event Tray for April 23rd 2026" while
+// its URLs use "04-23-2026" and its API uses ISO dates.
 const todayInLondon = () => {
+  const now = new Date();
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/London',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).formatToParts(new Date());
-  const year = parts.find((p) => p.type === 'year').value;
-  const month = parts.find((p) => p.type === 'month').value;
-  const day = parts.find((p) => p.type === 'day').value;
+  }).formatToParts(now);
+  const year = Number(parts.find((p) => p.type === 'year').value);
+  const month = Number(parts.find((p) => p.type === 'month').value);
+  const day = Number(parts.find((p) => p.type === 'day').value);
+  const monthLong = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/London',
+    month: 'long',
+  }).format(now);
+  const pad = (n) => String(n).padStart(2, '0');
   return {
-    iso: `${year}-${month}-${day}`,
-    usStyle: `${month}-${day}-${year}`,
+    year,
+    month,
+    day,
+    monthLong,
+    iso: `${year}-${pad(month)}-${pad(day)}`,
+    usStyle: `${pad(month)}-${pad(day)}-${year}`,
   };
+};
+
+const getOrdinal = (n) => {
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
 };
 
 class ChallengeError extends Error {
@@ -142,6 +159,43 @@ const fetchDelfontJSON = async (path, { referer } = {}) => {
     throw new Error(`Delfont API ${resp.status}: ${url}`);
   }
   return resp.json();
+};
+
+// HTML counterpart. Used to discover today's EventIDs by parsing the
+// server-rendered calendar page rather than guessing an API shape.
+const fetchDelfontHTML = async (url) => {
+  const resp = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-GB,en;q=0.9',
+    },
+    redirect: 'follow',
+  });
+  const contentType = resp.headers.get('content-type') || '';
+  if (!contentType.includes('html')) {
+    throw new ChallengeError('Non-HTML response for calendar page', {
+      url,
+      status: resp.status,
+      contentType,
+    });
+  }
+  if (!resp.ok) throw new Error(`Delfont HTML ${resp.status}: ${url}`);
+  const text = await resp.text();
+  // The CF challenge and Queue-it waiting-room pages are ALSO HTML, so we
+  // sniff the body for tell-tale markers. A normal box-office page is
+  // >150KB; a challenge page is <50KB and contains one of these strings.
+  if (
+    text.length < 80000 &&
+    /challenge-platform|Just a moment|Cloudflare|queue-it|Queue-it/i.test(text)
+  ) {
+    throw new ChallengeError('Challenge/queue page returned instead of calendar', {
+      url,
+      snippet: text.slice(0, 200),
+    });
+  }
+  return text;
 };
 
 // Open a hidden background tab to the production's public URL. The real
@@ -198,57 +252,110 @@ const fetchDelfontJSONWithHealing = async (path, { referer, productionUrl } = {}
   }
 };
 
+const fetchDelfontHTMLWithHealing = async (url, { productionUrl } = {}) => {
+  try {
+    return await fetchDelfontHTML(url);
+  } catch (err) {
+    if (!(err instanceof ChallengeError)) throw err;
+    log(`Challenge detected on calendar page ${url}; attempting cookie refresh`);
+    await refreshCookiesViaHiddenTab(productionUrl ?? url);
+    return await fetchDelfontHTML(url);
+  }
+};
+
 // --- Delfont adapter -------------------------------------------------------
 
 /**
- * Return all EventIDs in the `calendarseries` response that fall on `today`.
- * The response shape isn't officially documented so we walk it defensively:
- * any object that has something that looks like an EventID AND a date that
- * matches today is a candidate.
+ * The `/api/events/calendarseries/<code>` endpoint only returns show-level
+ * metadata (name, venue, banner, promotions). The list of performances
+ * itself isn't served as JSON — it's rendered server-side into the series
+ * HTML page as `<calendar-event>` custom elements inside an event tray
+ * labelled e.g. `aria-label="Event Tray for April 23rd 2026"`.
+ *
+ * We fetch that HTML with the user's session cookies, parse it with
+ * DOMParser, locate today's tray by aria-label, and pull EventIDs out of
+ * the `<calendar-event>` elements' data attributes / inner anchors.
  */
-const extractTodayEventIds = (calendarResponse, todayIso) => {
+const extractPerformanceIdFromElement = (el) => {
+  const candidates = [
+    el.getAttribute && el.getAttribute('data-performance-id'),
+    el.getAttribute && el.getAttribute('data-event-id'),
+    el.getAttribute && el.getAttribute('data-performance'),
+    el.getAttribute && el.getAttribute('data-session-id'),
+    el.getAttribute && el.getAttribute('data-id'),
+  ];
+  const inner = el.querySelector ? el.querySelector('button, a') : null;
+  if (inner) {
+    candidates.push(
+      inner.getAttribute('data-performance-id'),
+      inner.getAttribute('data-event-id'),
+      inner.getAttribute('data-session-id'),
+      inner.getAttribute('data-id'),
+      inner.getAttribute('href'),
+    );
+  }
+  // Last resort: scan the rendered HTML for anything that looks like
+  // `<slug>-<bignumber>` (as in `oliver-1154141`) or a bare 5+ digit id.
+  candidates.push(el.outerHTML);
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const str = String(candidate).trim();
+    if (/^\d{5,}$/.test(str)) return str;
+    const slug = str.match(/[a-z0-9-]+-(\d{5,})/i);
+    if (slug) return slug[1];
+    const bare = str.match(/\b(\d{5,})\b/);
+    if (bare) return bare[1];
+  }
+  return null;
+};
+
+const extractTodayEventIdsFromHTML = (html, today) => {
+  const { year, month, day, monthLong } = today;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  // Try a handful of aria-label spellings — Delfont's template formats it
+  // slightly differently between venues / seasons.
+  const labels = [
+    `Event Tray for ${monthLong} ${getOrdinal(day)} ${year}`,
+    `Event Tray for ${monthLong} ${day} ${year}`,
+    `Event Tray for ${monthLong} ${day}, ${year}`,
+    `Event Tray for ${getOrdinal(day)} ${monthLong} ${year}`,
+  ];
+  let tray = null;
+  for (const label of labels) {
+    tray = doc.querySelector(`[aria-label="${label}"]`);
+    if (tray) break;
+  }
+
+  const eventNodes = tray
+    ? tray.querySelectorAll('calendar-event')
+    : doc.querySelectorAll('calendar-event');
+
   const found = new Set();
+  const mmdd = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}-${year}`;
+  const isoPrefix = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  const visit = (node) => {
-    if (!node) return;
-    if (Array.isArray(node)) {
-      for (const item of node) visit(item);
-      return;
+  for (const node of eventNodes) {
+    // If we fell back to "all calendar events on the page" because the tray
+    // label didn't match, we still want to pick only today's performances.
+    // Check any obvious date attributes, else accept the node (Delfont's
+    // initial HTML usually only has today's tray populated anyway).
+    if (!tray) {
+      const hay = [
+        node.getAttribute('data-start-date'),
+        node.getAttribute('data-picker-date'),
+        node.getAttribute('data-date'),
+        node.outerHTML,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      if (hay && !hay.includes(mmdd) && !hay.includes(isoPrefix)) continue;
     }
-    if (typeof node !== 'object') return;
-
-    // Does this look like an event object?
-    const idCandidate =
-      node.EventID ?? node.eventID ?? node.eventId ?? node.Id ?? node.id ?? null;
-    const dateCandidate =
-      node.StartDateTime ??
-      node.startDateTime ??
-      node.EventStartDate ??
-      node.eventStartDate ??
-      node.Date ??
-      node.date ??
-      node.PerformanceDate ??
-      node.performanceDate ??
-      null;
-
-    if (
-      idCandidate !== null &&
-      idCandidate !== undefined &&
-      typeof dateCandidate === 'string' &&
-      dateCandidate.startsWith(todayIso)
-    ) {
-      const idStr = String(idCandidate);
-      // Skip obvious non-EventIDs (short numeric ids from other fields).
-      if (/^\d{5,}$/.test(idStr)) found.add(idStr);
-    }
-
-    for (const value of Object.values(node)) {
-      if (value && typeof value === 'object') visit(value);
-    }
-  };
-
-  visit(calendarResponse);
-  return [...found];
+    const id = extractPerformanceIdFromElement(node);
+    if (id) found.add(id);
+  }
+  return { trayFound: !!tray, eventIds: [...found] };
 };
 
 /**
@@ -302,16 +409,14 @@ const scrapeDelfontProduction = async (production) => {
     return { productionId: id, status: 'error', reason: 'missing series_code' };
   }
 
-  const { iso: todayIso, usStyle } = todayInLondon();
+  const today = todayInLondon();
 
-  // 1. Calendar — lists upcoming performances for the series.
-  const calendarPath = `/api/events/calendarseries/${encodeURIComponent(seriesCode)}?salesChannel=Web`;
-  let calendar;
+  // 1. Fetch the series HTML and parse today's performances out of the
+  //    server-rendered calendar. The JSON `calendarseries` endpoint only
+  //    returns show metadata, so we can't use it for discovery.
+  let html;
   try {
-    calendar = await fetchDelfontJSONWithHealing(calendarPath, {
-      referer: productionUrl,
-      productionUrl,
-    });
+    html = await fetchDelfontHTMLWithHealing(productionUrl, { productionUrl });
   } catch (err) {
     return {
       productionId: id,
@@ -321,28 +426,31 @@ const scrapeDelfontProduction = async (production) => {
     };
   }
 
-  const todayIds = extractTodayEventIds(calendar, todayIso);
-  log(`[${name}] calendar returned ${todayIds.length} performance(s) for ${todayIso}`);
+  const { trayFound, eventIds: todayIds } = extractTodayEventIdsFromHTML(html, today);
+  log(
+    `[${name}] calendar HTML parsed: tray ${trayFound ? 'found' : 'NOT found'}, ` +
+      `${todayIds.length} performance(s) for ${today.iso}`,
+  );
 
   if (todayIds.length === 0) {
     return {
       productionId: id,
       status: 'unavailable',
-      reason: 'no_performances_today',
+      reason: trayFound ? 'no_performances_today' : 'tray_not_found',
       performanceCount: 0,
       standCount: 0,
       performances: [],
     };
   }
 
-  // 2. For each performance, fetch the seat-map inventory.
+  // 2. For each performance, fetch the seat-map inventory JSON.
   let totalStanding = 0;
   const performances = [];
   for (const eventId of todayIds) {
     const invPath = `/api/eventinventory/${encodeURIComponent(eventId)}?includeOpens=true&salesChannel=Web`;
     // The referer should look like the event page the user would have
     // landed on — matches what a real browser sends.
-    const referer = `${productionUrl}/${encodeURIComponent(name.toLowerCase().replace(/\s+/g, '-'))}-${eventId}?startDate=${usStyle}`;
+    const referer = `${productionUrl}/${encodeURIComponent(name.toLowerCase().replace(/\s+/g, '-'))}-${eventId}?startDate=${today.usStyle}`;
     try {
       const inventory = await fetchDelfontJSONWithHealing(invPath, {
         referer,
