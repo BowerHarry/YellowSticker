@@ -60,7 +60,10 @@ const stubProduction = {
 
 const stubAvailabilityProduction = {
   ...stubProduction,
-  scrapingUrl: 'https://buytickets.delfontmackintosh.co.uk/hamilton',
+  // Series code + scraping URL mirror the real Delfont row for
+  // Hamilton so the rendered link matches production output.
+  seriesCode: 'VPHAM',
+  scrapingUrl: 'https://buytickets.delfontmackintosh.co.uk/tickets/series/VPHAM',
 };
 
 const stubSub = {

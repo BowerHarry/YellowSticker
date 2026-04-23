@@ -76,6 +76,7 @@ type ProductionRow = {
   theatre: string;
   city?: string | null;
   scraping_url: string;
+  series_code: string | null;
   last_seen_status: string | null;
   last_availability_transition_at: string | null;
   end_date: string | null;
@@ -227,6 +228,7 @@ const fanOutAvailabilityEmails = async (
           slug: production.slug,
           endDate: production.end_date ?? null,
           scrapingUrl: production.scraping_url,
+          seriesCode: production.series_code,
         },
         {
           paymentType: 'subscription',
@@ -411,7 +413,7 @@ Deno.serve(async (req) => {
 
     const { data: production, error: prodError } = await adminClient
       .from('productions')
-      .select('id,name,slug,theatre,city,scraping_url,last_seen_status,last_availability_transition_at,end_date')
+      .select('id,name,slug,theatre,city,scraping_url,series_code,last_seen_status,last_availability_transition_at,end_date')
       .eq('id', productionId)
       .maybeSingle();
     if (prodError || !production) {

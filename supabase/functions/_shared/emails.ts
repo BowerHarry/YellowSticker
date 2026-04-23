@@ -178,11 +178,34 @@ export const cancellationEmail = (
   };
 };
 
+// The Delfont box-office URL always has the form
+//   https://buytickets.delfontmackintosh.co.uk/tickets/series/<SERIES_CODE>/
+// and the `series_code` on each production is the canonical source of
+// truth. Prefer rebuilding from the code rather than using
+// `scraping_url`, which can drift (trailing slashes, query strings,
+// legacy paths). Fall back to `scraping_url` only when we have no
+// series code (e.g. future non-Delfont adapters).
+const DELFONT_SERIES_BASE = 'https://buytickets.delfontmackintosh.co.uk/tickets/series';
+
+const boxOfficeUrl = (
+  seriesCode: string | null | undefined,
+  fallback: string,
+): string => {
+  if (seriesCode && seriesCode.trim()) {
+    return `${DELFONT_SERIES_BASE}/${encodeURIComponent(seriesCode.trim())}/`;
+  }
+  return fallback;
+};
+
 export const availabilityEmail = (
-  production: ProductionInfo & { scrapingUrl: string },
+  production: ProductionInfo & {
+    scrapingUrl: string;
+    seriesCode?: string | null;
+  },
   sub: SubscriptionInfo,
   counts: { standCount: number | null; performanceCount: number | null },
 ): TemplateOutput => {
+  const href = boxOfficeUrl(production.seriesCode ?? null, production.scrapingUrl);
   const countLine =
     counts.standCount != null
       ? `<p style="margin: 0 0 12px 0;">Found <strong>${counts.standCount}</strong> standing ticket${counts.standCount === 1 ? '' : 's'}${counts.performanceCount != null ? ` across <strong>${counts.performanceCount}</strong> performance${counts.performanceCount === 1 ? '' : 's'} today` : ''}.</p>`
@@ -191,7 +214,7 @@ export const availabilityEmail = (
     <p style="margin: 0 0 12px 0; font-size: 16px;">Standing tickets appear to be available at <strong>${escapeHtml(production.theatre)}</strong> right now.</p>
     ${countLine}
     <p style="margin: 16px 0;">
-      <a href="${escapeHtml(production.scrapingUrl)}" style="display: inline-block; padding: 10px 16px; background: #eab308; color: #0b0b0c; border-radius: 8px; text-decoration: none; font-weight: 600;">Open the box office page</a>
+      <a href="${escapeHtml(href)}" style="display: inline-block; padding: 10px 16px; background: #eab308; color: #0b0b0c; border-radius: 8px; text-decoration: none; font-weight: 600;">Open the box office page</a>
     </p>
     <p style="font-size: 13px; color: #667085;">These drops go fast. Click through, sign in if needed, and grab a ticket before the queue forms.</p>
   `;

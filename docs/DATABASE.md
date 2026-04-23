@@ -16,17 +16,6 @@ One row per person who has ever signed up.
 | `notification_preference`| `text`        | `email` \| `sms` \| `both`                              |
 | `created_at` / `updated_at` | `timestamptz` | auto-maintained                                      |
 
-### `theatres`
-
-Scraping configuration per venue.
-
-| column                     | type       | notes                                                     |
-|----------------------------|------------|-----------------------------------------------------------|
-| `id`                       | `uuid`     | primary key                                               |
-| `name`                     | `text`     | unique, matches `productions.theatre`                     |
-| `standing_ticket_prefixes` | `text[]`   | e.g. `{'STALLS-STAND-', 'GRAND CIRCLE-STAND-'}`           |
-| `created_at` / `updated_at`| `timestamptz` |                                                        |
-
 ### `productions`
 
 One row per show we scrape.
@@ -36,8 +25,7 @@ One row per show we scrape.
 | `id`                                | `uuid`        | primary key                                                                     |
 | `slug`                              | `text`        | unique; also used as part of performance URL patterns                           |
 | `name`                              | `text`        | display name                                                                    |
-| `theatre`                           | `text`        | legacy denormalised theatre name (still used for scraper matching)              |
-| `theatre_id`                        | `uuid`        | FK → `theatres.id`                                                              |
+| `theatre`                           | `text`        | display name of the venue; also used by adapters for per-theatre dispatch       |
 | `city`                              | `text`        | optional                                                                        |
 | `scraping_url`                      | `text`        | public box-office page; used as hidden-tab target when CF cookies need refreshing |
 | `series_code`                       | `text`        | ticketing-system-specific identifier (Delfont series code, e.g. `GIEOLI`)       |
@@ -143,20 +131,13 @@ extension is offline or just outside its configured active window.
 | `extension_version`  | `text`        | last-reported version string                          |
 | `updated_at`         | `timestamptz` | auto-touched on every upsert                          |
 
-### `scraper_usage_daily`
-
-Legacy daily counter written by the old ScrapingBee-based scraper. **Not
-written to any more** but kept in place so the `status-dashboard` edge
-function doesn't break. Drop in a future migration once the dashboard is
-refactored away from it.
-
 ## Indexes
 
-See `supabase/migrations/20241114001_init.sql` and `20241116003_add_theatres_table.sql`. Key indexes:
-
-- `productions(theatre_id)`
 - `subscriptions(production_id)`
+- `subscriptions(production_id, subscription_end) where payment_status='paid'` — partial index for the availability fan-out query
+- `subscriptions(is_test_mode)`
 - `notification_logs(production_id)`
+- `scrape_heartbeats(reported_at desc)` / `(production_id, reported_at desc)`
 
 ## Access patterns
 
@@ -186,3 +167,4 @@ See `supabase/migrations/20241114001_init.sql` and `20241116003_add_theatres_tab
 | `20260423004_billing_state.sql`                | billing state on `subscriptions` (Stripe ids, PaymentIntent, `current_period_start`, `payment_type`, `refunded` / `refund_failed` states) for the refund guarantee |
 | `20260423005_subscription_alerts.sql`          | `subscriptions.last_alerted_at` + `productions.last_availability_transition_at` + partial index for per-user availability fan-out |
 | `20260423006_stripe_mode_flag.sql`             | `subscriptions.is_test_mode` so test vs live Stripe rows can be told apart without calling Stripe |
+| `20260423007_drop_dead_tables.sql`             | drops `scraper_usage_daily` + `increment_scraper_usage()` (legacy pg_cron bookkeeping) and `theatres` + `productions.theatre_id` (abandoned normalisation that the app never read) |
