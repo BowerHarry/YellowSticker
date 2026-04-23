@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import {
   adminAuth,
+  adminCreateProduction,
   adminPreviewCancel,
   adminTestFixture,
   getMonitorStatus,
   sendTestEmail,
+  type AdminCreateProductionPayload,
   type AdminPreviewCancelResponse,
   type AdminPreviewCancelSelector,
   type TestEmailTemplate,
@@ -63,6 +65,15 @@ const SectionCard = ({ title, children }: { title: string; children: React.React
     {children}
   </section>
 );
+
+const formInputStyle: CSSProperties = {
+  width: '100%',
+  padding: '0.5rem 0.75rem',
+  background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.2)',
+  borderRadius: '0.5rem',
+  color: 'inherit',
+};
 
 const StatusRow = ({
   label,
@@ -246,6 +257,26 @@ const MonitorContent = ({
   const [fixtureError, setFixtureError] = useState<string | null>(null);
   const [fixtureResult, setFixtureResult] = useState<TestFixtureResponse | null>(null);
 
+  // Add production panel state.
+  const [prodSlug, setProdSlug] = useState('');
+  const [prodName, setProdName] = useState('');
+  const [prodTheatre, setProdTheatre] = useState('');
+  const [prodCity, setProdCity] = useState('London');
+  const [prodScrapingUrl, setProdScrapingUrl] = useState('');
+  const [prodSeriesCode, setProdSeriesCode] = useState('');
+  const [prodAdapter, setProdAdapter] = useState<'delfont' | 'none'>('delfont');
+  const [prodScrapeDisabled, setProdScrapeDisabled] = useState(false);
+  const [prodScrapeDisabledReason, setProdScrapeDisabledReason] = useState('');
+  const [prodDescription, setProdDescription] = useState('');
+  const [prodStart, setProdStart] = useState('');
+  const [prodEnd, setProdEnd] = useState('');
+  const [prodPosterName, setProdPosterName] = useState<string | null>(null);
+  const [prodPosterMime, setProdPosterMime] = useState<string | null>(null);
+  const [prodPosterBase64, setProdPosterBase64] = useState<string | null>(null);
+  const [prodSaving, setProdSaving] = useState(false);
+  const [prodError, setProdError] = useState<string | null>(null);
+  const [prodResult, setProdResult] = useState<string | null>(null);
+
   const runFixtureAction = async (payload: TestFixtureAction) => {
     const username = sessionStorage.getItem('admin_username');
     const password = sessionStorage.getItem('admin_password');
@@ -262,6 +293,86 @@ const MonitorContent = ({
       return;
     }
     setFixtureResult(data ?? null);
+  };
+
+  const handlePosterChange = (fileList: FileList | null) => {
+    const file = fileList?.[0];
+    if (!file) {
+      setProdPosterName(null);
+      setProdPosterMime(null);
+      setProdPosterBase64(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === 'string') {
+        setProdPosterBase64(result);
+        setProdPosterName(file.name);
+        setProdPosterMime(file.type || null);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCreateProduction = async () => {
+    const username = sessionStorage.getItem('admin_username');
+    const password = sessionStorage.getItem('admin_password');
+    if (!username || !password) {
+      setProdError('Session expired — log out and back in.');
+      return;
+    }
+    if (!prodSlug.trim() || !prodName.trim() || !prodTheatre.trim() || !prodScrapingUrl.trim()) {
+      setProdError('Slug, name, theatre, and scraping URL are required.');
+      return;
+    }
+    if (!prodStart) {
+      setProdError('Start date/time is required.');
+      return;
+    }
+    const startIso = new Date(prodStart);
+    if (Number.isNaN(startIso.getTime())) {
+      setProdError('Start date/time is invalid.');
+      return;
+    }
+    let endIso: string | undefined;
+    if (prodEnd) {
+      const end = new Date(prodEnd);
+      if (Number.isNaN(end.getTime())) {
+        setProdError('End date/time is invalid.');
+        return;
+      }
+      endIso = end.toISOString();
+    }
+
+    const payload: AdminCreateProductionPayload = {
+      slug: prodSlug.trim(),
+      name: prodName.trim(),
+      theatre: prodTheatre.trim(),
+      city: prodCity.trim() || null,
+      scrapingUrl: prodScrapingUrl.trim(),
+      seriesCode: prodSeriesCode.trim() || null,
+      adapter: prodAdapter,
+      scrapeDisabled: prodScrapeDisabled,
+      scrapeDisabledReason: prodScrapeDisabledReason.trim() || null,
+      description: prodDescription.trim() || null,
+      startDate: startIso.toISOString(),
+      endDate: endIso,
+      posterBase64: prodPosterBase64,
+      posterContentType: prodPosterMime,
+      posterFileName: prodPosterName,
+    };
+
+    setProdSaving(true);
+    setProdError(null);
+    setProdResult(null);
+    const { data, error } = await adminCreateProduction(payload, { username, password });
+    setProdSaving(false);
+    if (error) {
+      setProdError(error);
+      return;
+    }
+    setProdResult(JSON.stringify(data, null, 2));
   };
 
   const handlePreviewCancel = async () => {
@@ -367,6 +478,135 @@ const MonitorContent = ({
         </div>
       </SectionCard>
 
+      <SectionCard title="Add production">
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: '0.85rem' }}>
+          Upserts <code>public.productions</code> on <code>slug</code> and uploads an optional poster to the{' '}
+          <code>production-posters</code> bucket. For Delfont shows, paste the full series page URL — we&apos;ll infer{' '}
+          <code>series_code</code> from <code>/tickets/series/&lt;CODE&gt;/</code> unless you override it. The Firefox
+          extension only scrapes rows where <code>adapter != 'none'</code>, <code>scrape_disabled_reason IS NULL</code>,
+          and today falls between <code>start_date</code> and <code>end_date</code>.
+        </p>
+
+        <div className="grid" style={{ gap: '0.65rem' }}>
+          <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Slug (URL-safe, not test-*)</label>
+          <input value={prodSlug} onChange={(e) => setProdSlug(e.target.value)} style={formInputStyle} />
+
+          <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Display name</label>
+          <input value={prodName} onChange={(e) => setProdName(e.target.value)} style={formInputStyle} />
+
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 14rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Theatre</label>
+              <input value={prodTheatre} onChange={(e) => setProdTheatre(e.target.value)} style={formInputStyle} />
+            </div>
+            <div style={{ flex: '1 1 10rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>City</label>
+              <input value={prodCity} onChange={(e) => setProdCity(e.target.value)} style={formInputStyle} />
+            </div>
+          </div>
+
+          <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+            Scraping URL (Delfont series page — used as CF healing referer base)
+          </label>
+          <input
+            value={prodScrapingUrl}
+            onChange={(e) => setProdScrapingUrl(e.target.value)}
+            placeholder="https://buytickets.delfontmackintosh.co.uk/tickets/series/GIEOLI/"
+            style={formInputStyle}
+          />
+
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: '1 1 12rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Series code (optional override)</label>
+              <input
+                value={prodSeriesCode}
+                onChange={(e) => setProdSeriesCode(e.target.value)}
+                placeholder="Infer from URL if left blank"
+                disabled={prodAdapter === 'none'}
+                style={formInputStyle}
+              />
+            </div>
+            <div style={{ flex: '0 0 10rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Adapter</label>
+              <select
+                value={prodAdapter}
+                onChange={(e) => setProdAdapter(e.target.value as 'delfont' | 'none')}
+                style={formInputStyle}
+              >
+                <option value="delfont">delfont (default)</option>
+                <option value="none">none (fixture / manual only)</option>
+              </select>
+            </div>
+          </div>
+
+          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.85rem' }}>
+            <input
+              type="checkbox"
+              checked={prodScrapeDisabled}
+              onChange={(e) => setProdScrapeDisabled(e.target.checked)}
+            />
+            Pause scraping (sets <code>scrape_disabled_reason</code>)
+          </label>
+          {prodScrapeDisabled && (
+            <>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Disable reason</label>
+              <input
+                value={prodScrapeDisabledReason}
+                onChange={(e) => setProdScrapeDisabledReason(e.target.value)}
+                placeholder="operator_disabled"
+                style={formInputStyle}
+              />
+            </>
+          )}
+
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 14rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Start (local)</label>
+              <input type="datetime-local" value={prodStart} onChange={(e) => setProdStart(e.target.value)} style={formInputStyle} />
+            </div>
+            <div style={{ flex: '1 1 14rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>End (local, optional)</label>
+              <input type="datetime-local" value={prodEnd} onChange={(e) => setProdEnd(e.target.value)} style={formInputStyle} />
+            </div>
+          </div>
+
+          <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Description (optional)</label>
+          <textarea
+            value={prodDescription}
+            onChange={(e) => setProdDescription(e.target.value)}
+            rows={3}
+            style={{ ...formInputStyle, resize: 'vertical' }}
+          />
+
+          <label style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Poster image (optional)</label>
+          <input type="file" accept="image/*" onChange={(e) => handlePosterChange(e.target.files)} style={formInputStyle} />
+          {prodPosterName && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Selected: {prodPosterName}</span>
+          )}
+
+          <button className="btn btn--primary btn--small" disabled={prodSaving} onClick={handleCreateProduction}>
+            {prodSaving ? 'Saving…' : 'Save production'}
+          </button>
+        </div>
+
+        {prodError && <p style={{ margin: 0, fontSize: '0.85rem', color: '#f87171' }}>{prodError}</p>}
+        {prodResult && (
+          <pre
+            style={{
+              margin: 0,
+              padding: '0.75rem',
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '0.5rem',
+              fontSize: '0.78rem',
+              overflow: 'auto',
+            }}
+          >
+            {prodResult}
+          </pre>
+        )}
+      </SectionCard>
+
       <SectionCard title="Services">
         <div className="grid" style={{ gap: '0.75rem' }}>
           <StatusRow
@@ -470,7 +710,7 @@ const MonitorContent = ({
             placeholder="Subscription UUID"
             value={previewSubscriptionId}
             onChange={(e) => setPreviewSubscriptionId(e.target.value)}
-            style={previewInputStyle}
+            style={formInputStyle}
           />
         )}
         {previewKind === 'managementToken' && (
@@ -479,7 +719,7 @@ const MonitorContent = ({
             placeholder="Management token"
             value={previewManagementToken}
             onChange={(e) => setPreviewManagementToken(e.target.value)}
-            style={previewInputStyle}
+            style={formInputStyle}
           />
         )}
         {previewKind === 'emailSlug' && (
@@ -489,14 +729,14 @@ const MonitorContent = ({
               placeholder="user@example.com"
               value={previewEmail}
               onChange={(e) => setPreviewEmail(e.target.value)}
-              style={{ ...previewInputStyle, flex: 1, minWidth: '14rem' }}
+              style={{ ...formInputStyle, flex: 1, minWidth: '14rem' }}
             />
             <input
               type="text"
               placeholder="production-slug"
               value={previewProductionSlug}
               onChange={(e) => setPreviewProductionSlug(e.target.value)}
-              style={{ ...previewInputStyle, flex: 1, minWidth: '10rem' }}
+              style={{ ...formInputStyle, flex: 1, minWidth: '10rem' }}
             />
           </div>
         )}
@@ -619,15 +859,6 @@ const ModeBadge = ({ mode }: { mode: 'test' | 'live' }) => (
     {mode}
   </span>
 );
-
-const previewInputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.5rem 0.75rem',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.2)',
-  borderRadius: '0.5rem',
-  color: 'inherit',
-};
 
 const PreviewCancelResult = ({ result }: { result: AdminPreviewCancelResponse }) => {
   const { subscription, production, preview, recentAlerts } = result;

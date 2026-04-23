@@ -9,3 +9,30 @@ verify_jwt = false
 [functions."scrape-tickets"]
 verify_jwt = false
 
+[functions."report-scrape"]
+verify_jwt = false
+
+[functions."status-dashboard"]
+verify_jwt = false
+
+[functions."subscription-management"]
+verify_jwt = false
+
+[functions."send-test-email"]
+verify_jwt = false
+
+[functions."admin-auth"]
+verify_jwt = false
+
+[functions."admin-preview-cancel"]
+verify_jwt = false
+
+[functions."admin-test-fixture"]
+verify_jwt = false
+
+[functions."admin-create-production"]
+verify_jwt = false
+
+[functions."request-manage-link"]
+verify_jwt = false
+

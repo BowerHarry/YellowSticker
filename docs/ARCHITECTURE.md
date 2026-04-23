@@ -123,6 +123,12 @@ the alerting core.
     shows. The `simulate-available` action calls `report-scrape`
     internally with the shared secret so the real fan-out path runs.
     See [`TESTING.md`](TESTING.md).
+  - `admin-create-production` — admin basic-auth gated. Upserts a real
+    `productions` row (slug, dates, Delfont `scraping_url` / inferred
+    `series_code`, adapter, optional scrape pause) and uploads an
+    optional poster image into the `production-posters` bucket via the
+    service role. Surfaced from `/monitor` as the operator-friendly way
+    to onboard a new show without hand-writing SQL.
 - **Cron** — previously drove a `scrape-tickets` edge function. No longer
   used; migration `20260423001_remove_scrape_cron.sql` unschedules it.
 

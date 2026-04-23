@@ -94,6 +94,56 @@ export const requestManageLink = async (
   return { ok: data?.ok ?? false };
 };
 
+export type AdminCreateProductionPayload = {
+  slug: string;
+  name: string;
+  theatre: string;
+  city?: string | null;
+  scrapingUrl: string;
+  seriesCode?: string | null;
+  adapter?: 'delfont' | 'none';
+  scrapeDisabled?: boolean;
+  scrapeDisabledReason?: string | null;
+  description?: string | null;
+  startDate: string;
+  endDate?: string | null;
+  posterBase64?: string | null;
+  posterContentType?: string | null;
+  posterFileName?: string | null;
+};
+
+export type AdminCreateProductionResponse = {
+  ok: boolean;
+  production: {
+    id: string;
+    slug: string;
+    name: string;
+    poster_url: string | null;
+    adapter: string | null;
+    series_code: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    scrape_disabled_reason: string | null;
+  };
+};
+
+export const adminCreateProduction = async (
+  payload: AdminCreateProductionPayload,
+  credentials: { username: string; password: string },
+): Promise<{ data?: AdminCreateProductionResponse; error?: string }> => {
+  const basic = btoa(`${credentials.username}:${credentials.password}`);
+  const { data, error } = await callSupabaseFunction<AdminCreateProductionResponse>(
+    'admin-create-production',
+    {
+      method: 'POST',
+      headers: { 'X-Admin-Authorization': `Basic ${basic}` },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (error) return { error };
+  return { data: data ?? undefined };
+};
+
 export const getMonitorStatus = async (): Promise<MonitorStatusResponse | null> => {
   const { data, error } = await callSupabaseFunction<MonitorStatusResponse>('status-dashboard');
   if (error) {
