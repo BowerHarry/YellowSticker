@@ -7,6 +7,21 @@
 # headless as before.
 set -euo pipefail
 
+# Clean up stale Chromium singleton locks left behind if the previous
+# container was killed ungracefully. These files are hostname-scoped, so a
+# new container (with a new hostname) would otherwise refuse to reuse the
+# profile. They are only lock sentinels — no cookies / storage lives here.
+PROFILE_DIR="${CHROME_USER_DATA_DIR:-/app/.chrome-profile}"
+if [[ -d "$PROFILE_DIR" ]]; then
+  rm -f \
+    "$PROFILE_DIR/SingletonLock" \
+    "$PROFILE_DIR/SingletonCookie" \
+    "$PROFILE_DIR/SingletonSocket" \
+    "$PROFILE_DIR"/Singleton* \
+    2>/dev/null || true
+  echo "[entrypoint] Cleared stale Chromium singleton locks in ${PROFILE_DIR}"
+fi
+
 if [[ "${SCRAPE_HEADLESS:-false}" == "true" ]]; then
   echo "[entrypoint] SCRAPE_HEADLESS=true — skipping Xvfb, running headless"
   exec node src/index.js
