@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Yellow Sticker</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      body { width: 260px; padding: 0.75rem 1rem; font-size: 0.9rem; }
+      h1 { font-size: 1rem; margin: 0 0 0.5rem; }
+      p { margin: 0.25rem 0; }
+      .actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+      button {
+        flex: 1;
+        padding: 0.4rem;
+        border-radius: 4px;
+        border: 1px solid currentColor;
+        background: transparent;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .dot {
+        display: inline-block;
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        margin-right: 0.35rem;
+        vertical-align: middle;
+      }
+      .dot.on { background: #4ade80; box-shadow: 0 0 4px #4ade80; }
+      .dot.off { background: #f87171; }
+      .dot.warn { background: #facc15; }
+      .muted { opacity: 0.7; font-size: 0.82rem; }
+      pre { font-size: 0.75rem; white-space: pre-wrap; margin: 0.25rem 0 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Yellow Sticker Scraper</h1>
+    <p id="enabled-line"><span class="dot off"></span>Loading…</p>
+    <p class="muted" id="last-run">Last run: —</p>
+    <p class="muted" id="failures">Consecutive failures: —</p>
+    <pre id="summary"></pre>
+    <div class="actions">
+      <button id="run">Run now</button>
+      <button id="options">Settings</button>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

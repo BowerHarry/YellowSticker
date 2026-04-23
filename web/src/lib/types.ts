@@ -43,6 +43,9 @@ export interface ServiceHealth {
 
 export interface ScraperHealth extends ServiceHealth {
   lastCheckedAt: string | null;
+  lastHeartbeatAt: string | null;
+  lastHeartbeatKind: string | null;
+  recentStuck: boolean;
   hasFailedProductions: boolean;
 }
 

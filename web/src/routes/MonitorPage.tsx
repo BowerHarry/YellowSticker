@@ -215,12 +215,14 @@ export const MonitorPage = () => {
       <SectionCard title="Services">
         <div className="grid" style={{ gap: '0.75rem' }}>
           <StatusRow
-            label="Web scraper"
+            label="Firefox scraper extension"
             healthy={services.scraper.healthy}
             detail={
-              services.scraper.lastCheckedAt
-                ? `Last run ${formatTimestamp(services.scraper.lastCheckedAt)}`
-                : 'No successful runs yet'
+              services.scraper.recentStuck
+                ? 'Reported stuck — visit the box office site once on the Mac mini'
+                : services.scraper.lastHeartbeatAt
+                  ? `Last heartbeat ${formatTimestamp(services.scraper.lastHeartbeatAt)}`
+                  : 'No heartbeat received yet'
             }
           />
           <StatusRow

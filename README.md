@@ -1,6 +1,7 @@
 # Yellow Sticker
 
-Alerts for London theatre standing tickets. When a participating show drops standing tickets for today, Yellow Sticker notices and emails you.
+Alerts for London theatre standing tickets. When a participating show has
+standing tickets available for today, Yellow Sticker spots it and emails you.
 
 ## Architecture at a glance
 
@@ -9,91 +10,121 @@ Alerts for London theatre standing tickets. When a participating show drops stan
 │  React SPA (web/)         │        │  Supabase                      │
 │                           │──auth──▶  - Postgres (productions,       │
 │  - marketing / FAQ pages  │        │     subscriptions, users,      │
-│  - subscription flow      │──API──▶│     theatres, notification_logs│
-│  - Stripe Checkout        │        │  - Edge functions:             │
-│  - /monitor dashboard     │        │     create-checkout-session    │
-└───────────────────────────┘        │     stripe-webhook             │
+│  - subscription flow      │──API──▶│     theatres, scrape_heartbeats,│
+│  - Stripe Checkout        │        │     notification_logs)         │
+│  - /monitor dashboard     │        │  - Edge functions:             │
+└───────────────────────────┘        │     report-scrape ◀─── POST    │
+                                     │     status-dashboard           │
+                                     │     create-checkout-session    │
+                                     │     stripe-webhook             │
                                      │     subscription-management    │
                                      │     admin-auth                 │
-                                     │     status-dashboard           │
                                      └──────────────▲─────────────────┘
                                                     │
-                                                    │ writes status,
-                                                    │ reads productions
+                                                    │ POSTs scrape results
+                                                    │ + heartbeats
                                                     │
                                  ┌──────────────────┴────────────────┐
-                                 │  scraper-service/  (Docker)        │
-                                 │  Runs on a home machine            │
-                                 │  (e.g. Mac mini over home Wi-Fi).  │
+                                 │  firefox-extension/                │
+                                 │  Runs inside Firefox on the Mac    │
+                                 │  mini at home. Autostarted via     │
+                                 │  launchd; survives reboots.        │
                                  │                                    │
-                                 │  1. cron (every 15m, 8-18 UK)      │
-                                 │  2. load active productions        │
-                                 │  3. Puppeteer + stealth            │
-                                 │  4. update DB row                  │
-                                 │  5. Resend email to ALERT_EMAIL    │
-                                 │     on state transition            │
+                                 │  1. Alarm every 10m (configurable) │
+                                 │  2. Call Delfont JSON API from the │
+                                 │     already-authenticated browser  │
+                                 │     session (no Cloudflare fight). │
+                                 │  3. Count standing tickets.        │
+                                 │  4. POST report to Supabase.       │
+                                 │                                    │
+                                 │  Self-heals by opening a hidden    │
+                                 │  tab when CF cookies expire.       │
                                  └───────────┬────────────────────────┘
                                              │
                                              ▼
-                                         Theatre
-                                       websites (hit
-                                       from your home IP)
+                                   buytickets.delfontmackintosh.co.uk
+                                   (hit from the Mac mini's home IP,
+                                    with the real Firefox session)
 ```
 
-The scraper **only needs outbound internet** — nothing calls into it from the public internet. This is what fixes the Cloudflare / datacenter-IP problem we fought in previous rounds.
+Key design choice: the scraper runs **inside** the user's real Firefox
+browser. That means all Cloudflare / Queue-it challenges are handled by the
+browser itself exactly as they would be for a human visiting the site — no
+stealth plugins, no TLS impersonation, no Docker headless Chromium fighting
+interstitials.
 
 ## Repo layout
 
-- [`web/`](web/) — React 18 + Vite + TypeScript SPA. Subscription flow + `/monitor` dashboard.
-- [`supabase/`](supabase/) — database schema (`migrations/`), seed data, and edge functions.
-- [`scraper-service/`](scraper-service/) — Dockerised Node.js worker that does the actual scraping + emailing.
-- [`docs/`](docs/) — setup guides and reference docs.
+- [`web/`](web/) — React 18 + Vite + TypeScript SPA (subscription flow, `/monitor`).
+- [`supabase/`](supabase/) — database schema (`migrations/`), seed data, edge functions.
+- [`firefox-extension/`](firefox-extension/) — the scraper itself. Lives in Firefox on the Mac mini.
+- [`docs/`](docs/) — setup + reference.
 
 ## Stack
 
 - **Frontend**: React 18 + Vite + TypeScript + React Router.
-- **Backend**: Supabase (Postgres, Auth, Edge Functions running on Deno).
-- **Payments**: Stripe Checkout.
+- **Backend**: Supabase (Postgres, Auth, Edge Functions on Deno).
+- **Payments**: Stripe Checkout (currently shelved, code preserved).
 - **Email**: Resend.
-- **Scraping**: Puppeteer + `puppeteer-extra-plugin-stealth`, running in Docker on a home machine.
+- **Scraping**: a small Firefox WebExtension using the authenticated
+  `buytickets.delfontmackintosh.co.uk` JSON API.
 
 ## Getting started
 
-- **Scraper (the important bit for now)** → [`docs/SCRAPER_SETUP.md`](docs/SCRAPER_SETUP.md)
-- **Full architecture** → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- **Scraper** → [`firefox-extension/README.md`](firefox-extension/README.md)
+- **Architecture** → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **Database schema** → [`docs/DATABASE.md`](docs/DATABASE.md)
 - **Environment variables** → [`docs/env.sample`](docs/env.sample)
-
-### Frontend (optional while we focus on alerts)
-
-```bash
-cd web
-npm install
-cp env.sample .env.local   # then fill values
-npm run dev
-```
 
 ### Supabase backend
 
 ```bash
 supabase start
 supabase db reset --seed supabase/seed.sql
-supabase functions deploy create-checkout-session stripe-webhook status-dashboard subscription-management admin-auth
+supabase functions deploy \
+  create-checkout-session \
+  stripe-webhook \
+  status-dashboard \
+  subscription-management \
+  admin-auth \
+  report-scrape
 ```
 
-Set the secrets listed in [`docs/env.sample`](docs/env.sample) via `supabase secrets set …`.
-
-### Scraper worker
+Set secrets via `supabase secrets set …`:
 
 ```bash
-cd scraper-service
-cp env.example .env   # fill in Supabase + Resend + ALERT_EMAIL
-docker compose up -d --build
-docker compose logs -f
+supabase secrets set \
+  RESEND_API_KEY=re_... \
+  RESEND_FROM_EMAIL=alerts@yourdomain.com \
+  ALERT_EMAIL=you@example.com \
+  SCRAPER_SHARED_SECRET=$(openssl rand -hex 32)
 ```
 
-## Current state of things
+### Firefox extension (the important part)
 
-- ✅ Scraper runs from a home machine → no more Cloudflare datacenter blocks.
-- ✅ Notifications go to a single `ALERT_EMAIL` (testing mode). The subscription / paid-user fan-out is wired up in the DB but not in the worker yet; see [`docs/SCRAPER_SETUP.md`](docs/SCRAPER_SETUP.md) for where to re-enable it.
-- 🛠️ Frontend + Stripe payment flow are preserved but not actively in use. Fine to leave as-is for now.
+See [`firefox-extension/README.md`](firefox-extension/README.md). Short
+version:
+
+1. Install the extension in Firefox on the Mac mini (temporary add-on or
+   signed unlisted `.xpi`).
+2. Open its options page and paste in the Supabase URL, anon key, and the
+   `SCRAPER_SHARED_SECRET` you set above.
+3. Tick **Enabled**, save, and click **Run once now** to confirm.
+4. Configure launchd to autostart Firefox at login.
+
+### Frontend (optional for alerts-only mode)
+
+```bash
+cd web
+npm install
+cp env.sample .env.local   # fill values
+npm run dev
+```
+
+## Current state
+
+- Scraper runs as a Firefox extension on the Mac mini → no Cloudflare
+  datacenter blocks, no TLS fingerprint problem, no captcha solvers.
+- Notifications go to a single `ALERT_EMAIL` (testing mode). The paid
+  per-subscriber fan-out is wired up in the DB but not in the worker yet.
+- Frontend + Stripe payment flow are preserved but not actively in use.

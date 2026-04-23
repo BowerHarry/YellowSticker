@@ -1,0 +1,43 @@
+{
+  "manifest_version": 2,
+  "name": "Yellow Sticker Scraper",
+  "version": "1.0.0",
+  "description": "Polls Delfont Mackintosh ticketing API from an authenticated Firefox session to detect standing-ticket availability, and reports results back to Supabase.",
+  "permissions": [
+    "alarms",
+    "storage",
+    "tabs",
+    "notifications",
+    "https://buytickets.delfontmackintosh.co.uk/*"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "browser_action": {
+    "default_title": "Yellow Sticker Scraper",
+    "default_icon": {
+      "16": "icons/16.png",
+      "48": "icons/48.png"
+    },
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "yellowsticker-scraper@harry.local",
+      "strict_min_version": "115.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
+}

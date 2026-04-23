@@ -33,3 +33,8 @@ web/src/**/*.js
 # Supabase generated artifacts
 supabase/.temp/
 supabase/.branches/
+
+# Extension build artifacts
+firefox-extension/web-ext-artifacts/
+firefox-extension/*.xpi
+firefox-extension/*.zip

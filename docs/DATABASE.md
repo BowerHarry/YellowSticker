@@ -39,13 +39,16 @@ One row per show we scrape.
 | `theatre`                           | `text`        | legacy denormalised theatre name (still used for scraper matching)              |
 | `theatre_id`                        | `uuid`        | FK → `theatres.id`                                                              |
 | `city`                              | `text`        | optional                                                                        |
-| `scraping_url`                      | `text`        | landing/series URL                                                              |
+| `scraping_url`                      | `text`        | public box-office page; used as hidden-tab target when CF cookies need refreshing |
+| `series_code`                       | `text`        | ticketing-system-specific identifier (Delfont series code, e.g. `GIEOLI`)       |
+| `adapter`                           | `text`        | scraping adapter: `delfont` or `none` (skipped). Default `delfont`.             |
+| `scrape_disabled_reason`            | `text`        | if non-null, the extension skips this production                                |
 | `last_seen_status`                  | `text`        | `unknown` \| `available` \| `unavailable`                                       |
-| `last_checked_at`                   | `timestamptz` | set by the worker on every run                                                  |
-| `last_standing_tickets_found_at`    | `timestamptz` | set by the worker whenever the run returns `available`                          |
+| `last_checked_at`                   | `timestamptz` | set by `report-scrape` on every scrape cycle                                    |
+| `last_standing_tickets_found_at`    | `timestamptz` | set when a scrape returns `available`                                           |
 | `description`                       | `text`        | optional marketing copy                                                         |
 | `poster_url`                        | `text`        | optional                                                                        |
-| `start_date` / `end_date`           | `date`        | the worker only scrapes productions where today ∈ [start_date, end_date]        |
+| `start_date` / `end_date`           | `date`        | the extension only scrapes productions where today ∈ [start_date, end_date]     |
 
 ### `subscriptions`
 
@@ -79,9 +82,31 @@ One row per email sent (or attempted), for audit.
 | `channel_message_id`  | `text`        | provider id (legacy field; the scraper writes it inside `payload`)     |
 | `payload`             | `jsonb`       | provider id, recipient, reason, stand count, etc.                      |
 
+### `scrape_heartbeats`
+
+Append-only log of scrape-result reports from the Firefox extension.
+
+| column               | type          | notes                                                              |
+|----------------------|---------------|--------------------------------------------------------------------|
+| `id`                 | `uuid`        | primary key                                                        |
+| `reported_at`        | `timestamptz` | default `now()`                                                    |
+| `extension_version`  | `text`        | e.g. `'1.0.0'`                                                     |
+| `kind`               | `text`        | `scrape` \| `stuck` \| `resumed` \| `boot`                         |
+| `production_id`      | `uuid`        | nullable; set for `scrape`                                         |
+| `status`             | `text`        | `available` \| `unavailable` \| `error`                            |
+| `stand_count`        | `int`         | number of standing tickets found                                   |
+| `performance_count`  | `int`         | number of today's performances checked                             |
+| `detail`             | `jsonb`       | free-form — raw per-performance results, CF diagnostics, etc.      |
+
+Indexed on `reported_at` (desc) and `(production_id, reported_at desc)` so
+the status dashboard and admin queries are cheap.
+
 ### `scraper_usage_daily`
 
-Legacy daily counter written by the old ScrapingBee-based scraper. **Not written to any more** but kept in place so the `status-dashboard` edge function doesn't break. Drop in a future migration once the dashboard is refactored away from it.
+Legacy daily counter written by the old ScrapingBee-based scraper. **Not
+written to any more** but kept in place so the `status-dashboard` edge
+function doesn't break. Drop in a future migration once the dashboard is
+refactored away from it.
 
 ## Indexes
 
@@ -95,7 +120,7 @@ See `supabase/migrations/20241114001_init.sql` and `20241116003_add_theatres_tab
 
 - **Web SPA** uses the **anon key** to read `productions` (public data) and create pending `subscriptions` via the `create-checkout-session` edge function (which uses the service-role key internally).
 - **Edge functions** use the **service-role key** (set via `supabase secrets set`).
-- **Scraper worker** uses the **service-role key** to read productions and write `last_seen_status` etc.
+- **Firefox extension** uses the **anon key** to read `productions`, and posts write-requests to the `report-scrape` edge function with a shared secret in the `X-Scraper-Secret` header. It never sees the service-role key.
 
 ## Migrations reference
 
@@ -113,4 +138,5 @@ See `supabase/migrations/20241114001_init.sql` and `20241116003_add_theatres_tab
 | `20241116001_add_management_token.sql`         | manage-subscription token on `subscriptions`                 |
 | `20241116002_add_production_dates.sql`         | `start_date` / `end_date`                                    |
 | `20241116003_add_theatres_table.sql`           | `theatres` table + FK                                        |
-| `20260423001_remove_scrape_cron.sql`           | **NEW** — unschedules the old pg_cron job                    |
+| `20260423001_remove_scrape_cron.sql`           | unschedules the old pg_cron job                              |
+| `20260423002_extension_scraper.sql`            | **NEW** — `series_code` / `adapter`, `scrape_heartbeats` table |

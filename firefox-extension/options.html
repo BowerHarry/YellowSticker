@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yellow Sticker Scraper · settings</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      body {
+        max-width: 640px;
+        margin: 2rem auto;
+        padding: 0 1.5rem 3rem;
+        line-height: 1.5;
+      }
+      h1 { margin-top: 0; }
+      fieldset {
+        border: 1px solid rgba(127, 127, 127, 0.25);
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+      }
+      legend { font-weight: 600; padding: 0 0.5rem; }
+      label { display: block; margin-bottom: 0.75rem; }
+      label span { display: block; font-weight: 500; margin-bottom: 0.25rem; }
+      input[type="text"],
+      input[type="number"],
+      input[type="password"],
+      input[type="url"] {
+        width: 100%;
+        padding: 0.45rem 0.6rem;
+        border-radius: 6px;
+        border: 1px solid rgba(127, 127, 127, 0.5);
+        font-size: 0.95rem;
+        box-sizing: border-box;
+      }
+      .row { display: flex; gap: 1rem; }
+      .row > label { flex: 1; }
+      .hint { font-size: 0.82rem; opacity: 0.7; margin-top: 0.25rem; }
+      button {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: 1px solid currentColor;
+        background: transparent;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #f4d35e;
+        border-color: #f4d35e;
+        color: #222;
+      }
+      .actions { display: flex; gap: 0.75rem; align-items: center; }
+      .status { font-size: 0.9rem; min-height: 1.2em; opacity: 0.8; }
+      .state-block {
+        font-size: 0.82rem;
+        opacity: 0.8;
+        white-space: pre-wrap;
+        background: rgba(127, 127, 127, 0.08);
+        border-radius: 6px;
+        padding: 0.75rem;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Yellow Sticker Scraper</h1>
+    <p>This extension polls the authenticated Delfont box-office API from this browser every few minutes and reports standing-ticket availability back to Supabase. Set the three secrets below, tick <em>enabled</em>, and it'll tick forever (provided Firefox stays running).</p>
+
+    <form id="settings">
+      <fieldset>
+        <legend>Supabase</legend>
+        <label>
+          <span>Project URL</span>
+          <input type="url" name="supabaseUrl" placeholder="https://your-project.supabase.co" required />
+          <div class="hint">From Supabase project settings → API → Project URL.</div>
+        </label>
+        <label>
+          <span>Anon key</span>
+          <input type="password" name="supabaseAnonKey" required />
+          <div class="hint">Only used for the read-only productions query.</div>
+        </label>
+        <label>
+          <span>Scraper shared secret</span>
+          <input type="password" name="scraperSecret" required />
+          <div class="hint">Matches the <code>SCRAPER_SHARED_SECRET</code> env var on the <code>report-scrape</code> edge function.</div>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Schedule</legend>
+        <div class="row">
+          <label>
+            <span>Poll every (minutes)</span>
+            <input type="number" name="pollMinutes" min="1" max="1440" value="10" />
+          </label>
+          <label>
+            <span>Active from (hour, London)</span>
+            <input type="number" name="activeHoursStart" min="0" max="23" value="8" />
+          </label>
+          <label>
+            <span>Active until (hour, London, exclusive)</span>
+            <input type="number" name="activeHoursEnd" min="0" max="24" value="22" />
+          </label>
+        </div>
+        <label>
+          <input type="checkbox" name="enabled" />
+          Enabled (uncheck to pause scraping without removing settings)
+        </label>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit" class="primary">Save</button>
+        <button type="button" id="run-now">Run once now</button>
+        <span class="status" id="status"></span>
+      </div>
+    </form>
+
+    <h2>Current state</h2>
+    <pre class="state-block" id="state">(loading…)</pre>
+
+    <script src="options.js"></script>
+  </body>
+</html>

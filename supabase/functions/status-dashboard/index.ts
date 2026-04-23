@@ -110,13 +110,38 @@ Deno.serve(async (req) => {
       console.error('Failed to load productions', error);
     }
 
-    // Scraper health: we no longer track per-request quota (the worker is
-    // self-hosted). Instead we flag the scraper unhealthy if any active
-    // production has a stale `last_checked_at` or a last_seen_status of
-    // 'unknown' (which indicates the last run failed for that production).
+    // Scraper health: the Firefox extension posts a heartbeat to
+    // `scrape_heartbeats` on every scrape cycle. If we haven't seen any
+    // heartbeat in the last 30 minutes during active hours, something is
+    // wrong (browser closed, laptop asleep, extension crashed, etc).
+    // We also flag unhealthy if a 'stuck' heartbeat is the most recent
+    // thing we've heard from it.
+    const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
+    let latestHeartbeatAt: string | null = null;
+    let latestHeartbeatKind: string | null = null;
+    let recentStuck = false;
+    try {
+      const { data: hb, error: hbError } = await adminClient
+        .from('scrape_heartbeats')
+        .select('reported_at, kind')
+        .order('reported_at', { ascending: false })
+        .limit(5);
+      if (hbError) throw hbError;
+      const rows = (hb ?? []) as Array<{ reported_at: string; kind: string }>;
+      if (rows.length > 0) {
+        latestHeartbeatAt = rows[0].reported_at;
+        latestHeartbeatKind = rows[0].kind;
+        recentStuck = rows.some(
+          (r) => r.kind === 'stuck' && r.reported_at >= thirtyMinAgo,
+        );
+      }
+    } catch (error) {
+      console.error('Failed to load scrape_heartbeats', error);
+    }
+
     const hasFailedProductions = productionStatuses.some((p) => p.lastSeenStatus === 'unknown');
-    const hasStaleProductions = productionStatuses.some((p) => p.status === 'unhealthy');
-    const scraperHealthy = !hasFailedProductions && !hasStaleProductions;
+    const heartbeatFresh = !!latestHeartbeatAt && latestHeartbeatAt >= thirtyMinAgo;
+    const scraperHealthy = heartbeatFresh && !recentStuck && !hasFailedProductions;
     const lastCheckedAt = productionStatuses.reduce<string | null>((latest, p) => {
       if (!p.lastCheckedAt) return latest;
       if (!latest || p.lastCheckedAt > latest) return p.lastCheckedAt;
@@ -205,6 +230,9 @@ Deno.serve(async (req) => {
         scraper: {
           healthy: scraperHealthy,
           lastCheckedAt,
+          lastHeartbeatAt: latestHeartbeatAt,
+          lastHeartbeatKind: latestHeartbeatKind,
+          recentStuck,
           hasFailedProductions,
         },
         database: {
