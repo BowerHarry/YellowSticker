@@ -163,6 +163,23 @@ const fetchDelfontJSON = async (path, { referer } = {}) => {
 
 // HTML counterpart. Used to discover today's EventIDs by parsing the
 // server-rendered calendar page rather than guessing an API shape.
+//
+// Challenge detection is deliberately narrow: Delfont's real site is fronted
+// by Cloudflare and its normal HTML legitimately mentions "cloudflare" in
+// script URLs and headers references. Only the patterns below are unique to
+// interstitial pages.
+const CHALLENGE_MARKERS = [
+  /<title>\s*Just a moment/i, //  CF JS challenge
+  /<title>\s*Attention Required/i, //  CF 1015 block / WAF deny
+  /\/cdn-cgi\/challenge-platform\//i, //  CF Turnstile / managed challenge iframe
+  /window\._cf_chl_opt\b/i, //  CF challenge inline bootstrap
+  /cf-mitigated/i, //  CF mitigation page fragment
+  /queue-it\.net\/(softblock|pollhbanditssdk|challengeapi)/i, //  Queue-it waiting-room
+  /<title>\s*You are now in line/i, //  Queue-it visible title
+];
+
+const looksLikeChallenge = (html) => CHALLENGE_MARKERS.some((re) => re.test(html));
+
 const fetchDelfontHTML = async (url) => {
   const resp = await fetch(url, {
     method: 'GET',
@@ -181,15 +198,18 @@ const fetchDelfontHTML = async (url) => {
       contentType,
     });
   }
-  if (!resp.ok) throw new Error(`Delfont HTML ${resp.status}: ${url}`);
   const text = await resp.text();
-  // The CF challenge and Queue-it waiting-room pages are ALSO HTML, so we
-  // sniff the body for tell-tale markers. A normal box-office page is
-  // >150KB; a challenge page is <50KB and contains one of these strings.
-  if (
-    text.length < 80000 &&
-    /challenge-platform|Just a moment|Cloudflare|queue-it|Queue-it/i.test(text)
-  ) {
+  // A genuine block/challenge often comes with 403/503 too — treat those as
+  // challenges so the self-healing path kicks in.
+  if (resp.status === 403 || resp.status === 503) {
+    throw new ChallengeError(`Delfont HTML ${resp.status} (likely challenge)`, {
+      url,
+      status: resp.status,
+      snippet: text.slice(0, 200),
+    });
+  }
+  if (!resp.ok) throw new Error(`Delfont HTML ${resp.status}: ${url}`);
+  if (looksLikeChallenge(text)) {
     throw new ChallengeError('Challenge/queue page returned instead of calendar', {
       url,
       snippet: text.slice(0, 200),
