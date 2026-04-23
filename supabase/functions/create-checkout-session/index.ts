@@ -71,19 +71,6 @@ const ensureUser = async (payload: SubscriptionPayload) => {
   return data;
 };
 
-// Stripe's subscription model lets us schedule an automatic cancellation
-// at a specific future timestamp via `cancel_at`. Using this we implement
-// the guarantee: auto-renew subscriptions keep alerting the user until
-// 7 days after the production's final performance, then stop themselves.
-const cancelAtFromEndDate = (endDate: string | null | undefined): number | null => {
-  if (!endDate) return null;
-  const d = new Date(endDate);
-  if (Number.isNaN(d.getTime())) return null;
-  const cancelAt = new Date(d);
-  cancelAt.setUTCDate(cancelAt.getUTCDate() + 7);
-  return Math.floor(cancelAt.getTime() / 1000);
-};
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders, status: 204 });
@@ -150,8 +137,6 @@ Deno.serve(async (req) => {
         ? 'Yellow Sticker monthly standing-ticket alerts (auto-renew, cancel any time)'
         : 'Yellow Sticker 1-month standing-ticket alerts';
 
-    const cancelAt = paymentType === 'subscription' ? cancelAtFromEndDate(production.end_date) : null;
-
     const commonLineItems = [
       {
         quantity: 1,
@@ -175,7 +160,6 @@ Deno.serve(async (req) => {
           metadata: baseMetadata,
           subscription_data: {
             metadata: baseMetadata,
-            ...(cancelAt ? { cancel_at: cancelAt } : {}),
           },
           line_items: commonLineItems,
           success_url: `${siteUrl()}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,

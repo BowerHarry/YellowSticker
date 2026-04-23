@@ -89,6 +89,27 @@ const ensureUserExists = async (userId: string, email: string) => {
   return newUser;
 };
 
+// Compute the unix timestamp 7 days after the production's final
+// performance. Stripe's `cancel_at` on a subscription schedules an
+// automatic cancellation at that moment — we use this to enforce
+// "no renewals processed after production ends" without needing a
+// nightly cron. Set from the webhook (not Checkout) because
+// `subscription_data[cancel_at]` isn't a valid Checkout field.
+const cancelAtFromEndDate = (endDate: string | null | undefined): number | null => {
+  if (!endDate) return null;
+  const d = new Date(endDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const cancelAt = new Date(d);
+  cancelAt.setUTCDate(cancelAt.getUTCDate() + 7);
+  const seconds = Math.floor(cancelAt.getTime() / 1000);
+  // Stripe rejects cancel_at values that aren't in the future. If the
+  // production already ended >7 days ago we just return null and let
+  // the post-end renewal guard in handleRenewalOrPostEnd refund the
+  // stray invoice instead.
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  return seconds > nowSeconds ? seconds : null;
+};
+
 const logEmailSent = async (params: {
   userId: string | null;
   productionId: string | null;
@@ -231,13 +252,38 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
     };
   }
 
-  try {
-    const { data: production } = await adminClient
-      .from('productions')
-      .select('*')
-      .eq('id', productionId)
-      .single();
+  const { data: production } = await adminClient
+    .from('productions')
+    .select('*')
+    .eq('id', productionId)
+    .single();
 
+  // Schedule auto-cancellation 7 days after the production's end
+  // date so auto-renew subscriptions stop themselves and we never
+  // charge the user for a run that's already finished. Only applies
+  // to real recurring subscriptions — one-off payments have no
+  // subscription object to schedule against.
+  if (
+    paymentType === 'subscription' &&
+    stripeSubscriptionId &&
+    production &&
+    (production as ProductionRecord).end_date
+  ) {
+    const cancelAt = cancelAtFromEndDate((production as ProductionRecord).end_date ?? null);
+    if (cancelAt) {
+      try {
+        await stripe.subscriptions.update(stripeSubscriptionId, { cancel_at: cancelAt });
+      } catch (cancelAtError) {
+        console.error('Failed to set Stripe subscription cancel_at', {
+          stripeSubscriptionId,
+          productionId,
+          error: cancelAtError instanceof Error ? cancelAtError.message : cancelAtError,
+        });
+      }
+    }
+  }
+
+  try {
     if (production && user.email) {
       const { subject, html } = signupEmail(
         {
@@ -311,7 +357,7 @@ const handleRenewalOrPostEnd = async (invoice: Stripe.Invoice) => {
 
   // Post-end-date renewal: refund + cancel. This is the backstop for the
   // rule "renewals will not be processed after the production end date".
-  // The Stripe `cancel_at` we set at checkout should normally prevent us
+  // The Stripe `cancel_at` we set in `activateSubscription` normally prevents us
   // ever getting here, but key times (production end_date moved, clock
   // skew) can slip one through.
   if (isRenewal && productionEnd && productionEnd <= now) {
