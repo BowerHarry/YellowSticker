@@ -175,7 +175,8 @@ export type TestEmailTemplate =
   | 'cancel-refund'
   | 'cancel-period-end'
   | 'cancel-production-ended'
-  | 'expiry';
+  | 'expiry'
+  | 'availability';
 
 // Sends a stubbed copy of the given template via the admin-only
 // `send-test-email` edge function. Auth is basic-auth against
@@ -197,6 +198,86 @@ export const sendTestEmail = async (
   });
   if (error) return { error };
   return { ok: data?.ok ?? false, messageId: data?.messageId ?? null };
+};
+
+export type AdminPreviewCancelSelector =
+  | { subscriptionId: string }
+  | { managementToken: string }
+  | { email: string; productionSlug: string };
+
+export interface AdminPreviewCancelResponse {
+  subscription: {
+    id: string;
+    userId: string;
+    userEmail: string | null;
+    productionId: string;
+    paymentStatus: string;
+    paymentType: 'subscription' | 'one-time' | null;
+    subscriptionStart: string | null;
+    subscriptionEnd: string | null;
+    currentPeriodStart: string | null;
+    lastChargeAmountPence: number | null;
+    lastPaymentIntentId: string | null;
+    lastAlertedAt: string | null;
+    stripeSubscriptionId: string | null;
+    stripeSessionId: string | null;
+    managementToken: string | null;
+    cancellationReason: string | null;
+    isTestMode: boolean;
+    createdAt: string;
+  };
+  production: {
+    id: string;
+    name: string;
+    slug: string;
+    theatre: string;
+    endDate: string | null;
+    lastStandingTicketsFoundAt: string | null;
+    lastAvailabilityTransitionAt: string | null;
+  } | null;
+  recentAlerts: Array<{
+    sentAt: string;
+    channelMessageId: string | null;
+    reason: string | null;
+  }>;
+  preview: {
+    refundEligible: boolean;
+    reason: string;
+    refundAmountPence: number;
+    effective: 'immediately' | 'period_end' | 'n/a';
+    newPaymentStatus: string;
+    stripeActions: string[];
+    guarantee: {
+      applies: boolean;
+      since: string | null;
+      lastFoundAt: string | null;
+      explanation: string;
+    };
+    mode: {
+      runtime: 'test' | 'live' | 'unknown';
+      row: 'test' | 'live';
+      mismatch: boolean;
+    };
+  };
+}
+
+// Admin-only: inspect what a cancel would do for any subscription. No
+// DB writes, no Stripe calls — purely a dry-run.
+export const adminPreviewCancel = async (
+  selector: AdminPreviewCancelSelector,
+  credentials: { username: string; password: string },
+): Promise<{ data?: AdminPreviewCancelResponse; error?: string }> => {
+  const basic = btoa(`${credentials.username}:${credentials.password}`);
+  const { data, error } = await callSupabaseFunction<AdminPreviewCancelResponse>(
+    'admin-preview-cancel',
+    {
+      method: 'POST',
+      headers: { 'X-Admin-Authorization': `Basic ${basic}` },
+      body: JSON.stringify(selector),
+    },
+  );
+  if (error) return { error };
+  return { data: data ?? undefined };
 };
 
 export const cancelSubscription = async (

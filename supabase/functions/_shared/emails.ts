@@ -34,8 +34,12 @@ const formatDate = (iso: string | Date | null | undefined): string => {
   });
 };
 
+// Default to the Cloudflare Pages deployment so emails sent from a
+// misconfigured Supabase project still link somewhere useful rather than
+// to the developer's localhost. Override via `PUBLIC_SITE_URL` for
+// custom domains.
 export const siteUrl = (): string =>
-  Deno.env.get('PUBLIC_SITE_URL') ?? 'http://localhost:5173';
+  Deno.env.get('PUBLIC_SITE_URL') ?? 'https://yellowsticker.pages.dev';
 
 export const manageLink = (token: string | null): string | null =>
   token ? `${siteUrl()}/manage?token=${encodeURIComponent(token)}` : null;
@@ -171,6 +175,29 @@ export const cancellationEmail = (
   return {
     subject: header,
     html: wrap(header, body, manageLink(sub.managementToken ?? null)),
+  };
+};
+
+export const availabilityEmail = (
+  production: ProductionInfo & { scrapingUrl: string },
+  sub: SubscriptionInfo,
+  counts: { standCount: number | null; performanceCount: number | null },
+): TemplateOutput => {
+  const countLine =
+    counts.standCount != null
+      ? `<p style="margin: 0 0 12px 0;">Found <strong>${counts.standCount}</strong> standing ticket${counts.standCount === 1 ? '' : 's'}${counts.performanceCount != null ? ` across <strong>${counts.performanceCount}</strong> performance${counts.performanceCount === 1 ? '' : 's'} today` : ''}.</p>`
+      : '';
+  const body = `
+    <p style="margin: 0 0 12px 0; font-size: 16px;">Standing tickets appear to be available at <strong>${escapeHtml(production.theatre)}</strong> right now.</p>
+    ${countLine}
+    <p style="margin: 16px 0;">
+      <a href="${escapeHtml(production.scrapingUrl)}" style="display: inline-block; padding: 10px 16px; background: #eab308; color: #0b0b0c; border-radius: 8px; text-decoration: none; font-weight: 600;">Open the box office page</a>
+    </p>
+    <p style="font-size: 13px; color: #667085;">These drops go fast. Click through, sign in if needed, and grab a ticket before the queue forms.</p>
+  `;
+  return {
+    subject: `🎟️ Standing tickets: ${production.name}`,
+    html: wrap(`Standing tickets spotted: ${production.name}`, body, manageLink(sub.managementToken ?? null)),
   };
 };
 

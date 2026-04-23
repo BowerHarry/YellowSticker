@@ -8,6 +8,7 @@
 // token here because that token is random per-login and not persisted;
 // basic-auth is the cheapest way to gate this safely.
 import {
+  availabilityEmail,
   cancellationEmail,
   expiryNoticeEmail,
   renewalEmail,
@@ -35,7 +36,8 @@ type Template =
   | 'cancel-refund'
   | 'cancel-period-end'
   | 'cancel-production-ended'
-  | 'expiry';
+  | 'expiry'
+  | 'availability';
 
 const TEMPLATES: readonly Template[] = [
   'signup-subscription',
@@ -45,6 +47,7 @@ const TEMPLATES: readonly Template[] = [
   'cancel-period-end',
   'cancel-production-ended',
   'expiry',
+  'availability',
 ];
 
 const stubProduction = {
@@ -53,6 +56,11 @@ const stubProduction = {
   city: 'London',
   slug: 'hamilton',
   endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+};
+
+const stubAvailabilityProduction = {
+  ...stubProduction,
+  scrapingUrl: 'https://buytickets.delfontmackintosh.co.uk/hamilton',
 };
 
 const stubSub = {
@@ -98,6 +106,11 @@ const render = (template: Template) => {
       ).toISOString();
       return expiryNoticeEmail(stubProduction, stubSub, endsAt);
     }
+    case 'availability':
+      return availabilityEmail(stubAvailabilityProduction, stubSub, {
+        standCount: 6,
+        performanceCount: 2,
+      });
   }
 };
 

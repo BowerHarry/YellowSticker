@@ -54,8 +54,12 @@ that fires every lifecycle template via the admin-gated
 Billing details live in `subscriptions` and are driven end-to-end by the
 three Stripe edge functions (`create-checkout-session`, `stripe-webhook`,
 `subscription-management`). Test vs live is controlled by the
-`STRIPE_SECRET_KEY` prefix (`sk_test_…` vs `sk_live_…`); each function
-logs its mode on boot. The per-production price is read from the
+`STRIPE_SECRET_KEY` prefix (`sk_test_…` vs `sk_live_…`) plus the matching
+`STRIPE_WEBHOOK_SECRET`; each function logs its mode on boot. Every
+subscription row is stamped with `is_test_mode` at creation / activation
+so mode-mismatched cancels are caught by `/monitor`'s preview panel
+before they reach Stripe. See [`STRIPE_MODES.md`](STRIPE_MODES.md) for
+the full guide. The per-production price is read from the
 `PRICE_PER_PRODUCTION_GBP_PENCE` secret (default 200, i.e. £2).
 
 **Status**: preserved as-is; not actively being iterated on while we focus on
@@ -93,9 +97,20 @@ the alerting core.
       the singleton `scraper_settings` row so the monitor can tell "offline"
       from "outside active hours"
     - updates `productions.last_seen_status` / `last_checked_at`
-    - fires a Resend availability email on `unavailable → available`
+      (and `last_availability_transition_at` on the flip)
+    - **fans availability emails out** to every paid subscriber whose
+      `last_alerted_at` is older than the current availability event
+      (one email per subscriber per event, 200-per-cycle safety cap)
+    - also sends the legacy operator copy to `ALERT_EMAIL` on each
+      transition, so operators see every flip in their own inbox
     - fires a Resend "scraper stuck" email (throttled) when the extension
       self-reports it can't get past Cloudflare / Queue-it
+  - `admin-preview-cancel` — admin basic-auth gated, read-only. Given a
+    subscription id / management token / (email + production slug),
+    returns the exact refund + Stripe + email effect that
+    `subscription-management` cancel would produce, without actually
+    doing it. Shares its guarantee logic with `subscription-management`
+    so the admin panel and manage page always agree.
 - **Cron** — previously drove a `scrape-tickets` edge function. No longer
   used; migration `20260423001_remove_scrape_cron.sql` unschedules it.
 
@@ -134,20 +149,36 @@ Because the extension uses the real, logged-in Firefox session, it inherits
 the user's `cf_clearance`, `__cf_bm`, Queue-it tokens, etc. There is no
 stealth plugin, no TLS impersonation, no headless Chromium fighting CF.
 
-### Notifications (current MVP)
+### Notifications
 
-All alerts go to a single `ALERT_EMAIL`. Subscriber fan-out via
-`subscriptions` + `users` is intentionally disabled while we confirm the
-scraper is stable. To re-enable, extend the availability-email branch of
-`supabase/functions/report-scrape/index.ts` to:
+When a scrape reports `available`:
 
-- query `subscriptions` where `payment_status='paid'` and
-  `production_id = …`, joined with `users`
-- loop and `fetch('https://api.resend.com/emails', …)` per recipient
-- insert one row per send into `notification_logs`
+1. `report-scrape` updates `productions.last_standing_tickets_found_at`
+   on every matching cycle.
+2. On a clean `unavailable → available` flip, it additionally sets
+   `productions.last_availability_transition_at = now`. This is the
+   **per-event anchor** — distinct from `last_standing_tickets_found_at`,
+   which ticks every cycle while tickets exist and would otherwise
+   re-trigger fan-out forever.
+3. The fan-out then selects `subscriptions` where
+   `payment_status='paid' AND subscription_end > now AND (last_alerted_at IS NULL OR last_alerted_at < last_availability_transition_at)`,
+   joined with `users`. For each match we send a Resend availability
+   email, bump `subscriptions.last_alerted_at`, and insert a
+   `notification_logs` row with the user's id.
+4. In parallel, an operator copy goes to `ALERT_EMAIL` on the transition
+   so the operator sees every flip (useful while launching).
 
-A `notification_logs` row is already written for every availability email so
-you can audit runs.
+Practical consequences:
+
+- Each subscriber gets **one** email per availability event — not one
+  every 10 minutes while tickets are still there.
+- Someone who subscribes *during* ongoing availability catches the next
+  cycle (their `last_alerted_at` is NULL, which always predates the
+  transition anchor).
+- `availability → unavailable → available` counts as a **new event**
+  and re-alerts everyone.
+- Fan-out is capped at 200 recipients per cycle for safety. Above that
+  we'd want a queue; not needed at current volume.
 
 ## Why "browser extension" instead of "Puppeteer in a container"
 

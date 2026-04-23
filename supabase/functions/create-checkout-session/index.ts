@@ -198,6 +198,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Unable to start checkout' }, 500);
     }
 
+    // Stamp the Stripe runtime mode onto the row so admins can later
+    // tell test rows from live rows without calling Stripe. This is the
+    // canonical source of truth for which environment the row belongs
+    // to — Stripe IDs themselves don't carry that signal.
+    const isTestMode = stripeMode() === 'test';
+
     if (existingSubscription) {
       await adminClient
         .from('subscriptions')
@@ -211,6 +217,7 @@ Deno.serve(async (req) => {
           payment_type: paymentType,
           cancellation_reason: null,
           stripe_session_id: session.id,
+          is_test_mode: isTestMode,
         })
         .eq('id', existingSubscription.id);
     } else {
@@ -220,6 +227,7 @@ Deno.serve(async (req) => {
         payment_status: 'pending',
         payment_type: paymentType,
         stripe_session_id: session.id,
+        is_test_mode: isTestMode,
       });
     }
 

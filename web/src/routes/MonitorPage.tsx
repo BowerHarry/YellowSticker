@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
-import { getMonitorStatus, adminAuth, sendTestEmail, type TestEmailTemplate } from '../lib/api';
+import {
+  adminAuth,
+  adminPreviewCancel,
+  getMonitorStatus,
+  sendTestEmail,
+  type AdminPreviewCancelResponse,
+  type AdminPreviewCancelSelector,
+  type TestEmailTemplate,
+} from '../lib/api';
 import type { MonitorStatusResponse, ProductionStatus } from '../lib/types';
 import { AdminLogin } from '../components/AdminLogin';
 
 const EMAIL_TEMPLATES: { id: TestEmailTemplate; label: string }[] = [
+  { id: 'availability', label: 'Standing tickets available' },
   { id: 'signup-subscription', label: 'Signup (auto-renew)' },
   { id: 'signup-one-time', label: 'Signup (one-off)' },
   { id: 'renewal', label: 'Renewal' },
@@ -218,6 +227,57 @@ const MonitorContent = ({
   const [sending, setSending] = useState<TestEmailTemplate | null>(null);
   const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
 
+  // Preview cancel panel state.
+  type PreviewSelectorKind = 'subscriptionId' | 'managementToken' | 'emailSlug';
+  const [previewKind, setPreviewKind] = useState<PreviewSelectorKind>('emailSlug');
+  const [previewSubscriptionId, setPreviewSubscriptionId] = useState('');
+  const [previewManagementToken, setPreviewManagementToken] = useState('');
+  const [previewEmail, setPreviewEmail] = useState('');
+  const [previewProductionSlug, setPreviewProductionSlug] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewResult, setPreviewResult] = useState<AdminPreviewCancelResponse | null>(null);
+
+  const handlePreviewCancel = async () => {
+    const username = sessionStorage.getItem('admin_username');
+    const password = sessionStorage.getItem('admin_password');
+    if (!username || !password) {
+      setPreviewError('Session expired — log out and back in.');
+      return;
+    }
+
+    let selector: AdminPreviewCancelSelector | null = null;
+    if (previewKind === 'subscriptionId' && previewSubscriptionId.trim()) {
+      selector = { subscriptionId: previewSubscriptionId.trim() };
+    } else if (previewKind === 'managementToken' && previewManagementToken.trim()) {
+      selector = { managementToken: previewManagementToken.trim() };
+    } else if (
+      previewKind === 'emailSlug' &&
+      previewEmail.trim() &&
+      previewProductionSlug.trim()
+    ) {
+      selector = {
+        email: previewEmail.trim(),
+        productionSlug: previewProductionSlug.trim(),
+      };
+    }
+    if (!selector) {
+      setPreviewError('Fill in the selector fields above.');
+      return;
+    }
+
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewResult(null);
+    const { data, error } = await adminPreviewCancel(selector, { username, password });
+    setPreviewLoading(false);
+    if (error) {
+      setPreviewError(error);
+      return;
+    }
+    setPreviewResult(data ?? null);
+  };
+
   const handleSendTestEmail = async (template: TestEmailTemplate) => {
     const username = sessionStorage.getItem('admin_username');
     const password = sessionStorage.getItem('admin_password');
@@ -353,7 +413,231 @@ const MonitorContent = ({
           <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>{emailFeedback}</p>
         )}
       </SectionCard>
+
+      <SectionCard title="Preview cancel">
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: '0.85rem' }}>
+          Inspect what a cancel would do for any subscription — refund eligibility, Stripe actions,
+          recent alerts. Read-only.
+        </p>
+
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {(
+            [
+              { id: 'emailSlug', label: 'Email + slug' },
+              { id: 'subscriptionId', label: 'Subscription ID' },
+              { id: 'managementToken', label: 'Management token' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              className={`btn btn--small ${previewKind === opt.id ? 'btn--primary' : 'btn--ghost'}`}
+              onClick={() => setPreviewKind(opt.id)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {previewKind === 'subscriptionId' && (
+          <input
+            type="text"
+            placeholder="Subscription UUID"
+            value={previewSubscriptionId}
+            onChange={(e) => setPreviewSubscriptionId(e.target.value)}
+            style={previewInputStyle}
+          />
+        )}
+        {previewKind === 'managementToken' && (
+          <input
+            type="text"
+            placeholder="Management token"
+            value={previewManagementToken}
+            onChange={(e) => setPreviewManagementToken(e.target.value)}
+            style={previewInputStyle}
+          />
+        )}
+        {previewKind === 'emailSlug' && (
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <input
+              type="email"
+              placeholder="user@example.com"
+              value={previewEmail}
+              onChange={(e) => setPreviewEmail(e.target.value)}
+              style={{ ...previewInputStyle, flex: 1, minWidth: '14rem' }}
+            />
+            <input
+              type="text"
+              placeholder="production-slug"
+              value={previewProductionSlug}
+              onChange={(e) => setPreviewProductionSlug(e.target.value)}
+              style={{ ...previewInputStyle, flex: 1, minWidth: '10rem' }}
+            />
+          </div>
+        )}
+
+        <div>
+          <button
+            className="btn btn--primary btn--small"
+            disabled={previewLoading}
+            onClick={handlePreviewCancel}
+          >
+            {previewLoading ? 'Previewing…' : 'Preview cancel'}
+          </button>
+        </div>
+
+        {previewError && (
+          <p style={{ margin: 0, fontSize: '0.85rem', color: '#f87171' }}>{previewError}</p>
+        )}
+
+        {previewResult && <PreviewCancelResult result={previewResult} />}
+      </SectionCard>
       </div>
+    </div>
+  );
+};
+
+const ModeBadge = ({ mode }: { mode: 'test' | 'live' }) => (
+  <span
+    style={{
+      display: 'inline-block',
+      padding: '0.15rem 0.5rem',
+      borderRadius: '0.35rem',
+      fontSize: '0.7rem',
+      fontWeight: 600,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
+      background: mode === 'test' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(74, 222, 128, 0.15)',
+      color: mode === 'test' ? '#fbbf24' : '#4ade80',
+      border:
+        mode === 'test'
+          ? '1px solid rgba(234, 179, 8, 0.4)'
+          : '1px solid rgba(74, 222, 128, 0.35)',
+    }}
+  >
+    {mode}
+  </span>
+);
+
+const previewInputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '0.5rem 0.75rem',
+  background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.2)',
+  borderRadius: '0.5rem',
+  color: 'inherit',
+};
+
+const PreviewCancelResult = ({ result }: { result: AdminPreviewCancelResponse }) => {
+  const { subscription, production, preview, recentAlerts } = result;
+  const amountLabel =
+    preview.refundEligible && preview.refundAmountPence > 0
+      ? `£${(preview.refundAmountPence / 100).toFixed(2)}`
+      : '£0.00';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem',
+        padding: '0.75rem',
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '0.5rem',
+        fontSize: '0.85rem',
+      }}
+    >
+      {preview.mode.mismatch && (
+        <div
+          style={{
+            padding: '0.5rem 0.75rem',
+            borderRadius: '0.5rem',
+            background: 'rgba(248, 113, 113, 0.15)',
+            border: '1px solid rgba(248, 113, 113, 0.5)',
+          }}
+        >
+          <strong>Stripe mode mismatch.</strong> This row was created in{' '}
+          <code>{preview.mode.row}</code> mode, but the server is currently running in{' '}
+          <code>{preview.mode.runtime}</code> mode. A real cancel would hit Stripe with IDs it
+          doesn't know about — swap <code>STRIPE_SECRET_KEY</code> /{' '}
+          <code>STRIPE_WEBHOOK_SECRET</code> back, or clean up this row manually.
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.25rem 0.75rem' }}>
+        <strong>User</strong>
+        <span>{subscription.userEmail ?? subscription.userId}</span>
+        <strong>Mode</strong>
+        <span>
+          <ModeBadge mode={subscription.isTestMode ? 'test' : 'live'} />
+          {' '}
+          <span style={{ color: 'var(--muted)' }}>
+            (server runtime: <code>{preview.mode.runtime}</code>)
+          </span>
+        </span>
+        <strong>Production</strong>
+        <span>{production?.name ?? subscription.productionId}</span>
+        <strong>Status</strong>
+        <span>
+          {subscription.paymentStatus}
+          {subscription.paymentType ? ` · ${subscription.paymentType}` : ''}
+        </span>
+        <strong>Period</strong>
+        <span>
+          {subscription.currentPeriodStart
+            ? formatTimestamp(subscription.currentPeriodStart)
+            : '—'}
+          {' → '}
+          {subscription.subscriptionEnd ? formatTimestamp(subscription.subscriptionEnd) : '—'}
+        </span>
+        <strong>Last alerted</strong>
+        <span>{formatTimestamp(subscription.lastAlertedAt)}</span>
+        <strong>Last tickets found</strong>
+        <span>{formatTimestamp(production?.lastStandingTicketsFoundAt ?? null)}</span>
+      </div>
+
+      <div
+        style={{
+          padding: '0.5rem 0.75rem',
+          borderRadius: '0.5rem',
+          background: preview.refundEligible
+            ? 'rgba(74, 222, 128, 0.12)'
+            : 'rgba(156, 163, 175, 0.12)',
+          border: preview.refundEligible
+            ? '1px solid rgba(74, 222, 128, 0.4)'
+            : '1px solid rgba(156, 163, 175, 0.3)',
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+          {preview.refundEligible
+            ? `Refund owed: ${amountLabel}`
+            : 'No refund — cancel at period end'}
+        </div>
+        <div style={{ color: 'var(--muted)' }}>{preview.reason}</div>
+      </div>
+
+      <div>
+        <strong>Stripe actions</strong>
+        <ul style={{ margin: '0.25rem 0 0 1.25rem', padding: 0 }}>
+          {preview.stripeActions.map((action, idx) => (
+            <li key={idx}>{action}</li>
+          ))}
+        </ul>
+      </div>
+
+      {recentAlerts.length > 0 && (
+        <details>
+          <summary style={{ cursor: 'pointer' }}>
+            Recent alerts ({recentAlerts.length})
+          </summary>
+          <ul style={{ margin: '0.5rem 0 0 1.25rem', padding: 0, color: 'var(--muted)' }}>
+            {recentAlerts.map((a, idx) => (
+              <li key={idx}>
+                {formatTimestamp(a.sentAt)} · {a.reason ?? 'unknown'}
+                {a.channelMessageId ? ` · ${a.channelMessageId}` : ''}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 };

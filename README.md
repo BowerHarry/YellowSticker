@@ -19,6 +19,7 @@ standing tickets available for today, Yellow Sticker spots it and emails you.
                                      │     stripe-webhook             │
                                      │     subscription-management    │
                                      │     send-test-email            │
+                                     │     admin-preview-cancel       │
                                      │     admin-auth                 │
                                      └──────────────▲─────────────────┘
                                                     │
@@ -91,6 +92,7 @@ supabase functions deploy \
   status-dashboard \
   subscription-management \
   send-test-email \
+  admin-preview-cancel \
   admin-auth \
   report-scrape
 ```
@@ -114,6 +116,14 @@ When promoting to production, replace `sk_test_…` / `whsec_…` with the
 live-mode equivalents from the Stripe Dashboard. Each Stripe-aware edge
 function logs `stripe mode = test|live|unknown` on boot so you can
 confirm.
+
+> ⚠️  The two Stripe secrets above are the **only** switch between test
+> and live mode. Stripe IDs from one mode don't resolve in the other,
+> and flipping with stale `paid` rows in the DB silently breaks cancels
+> and refunds. `subscriptions.is_test_mode` is stamped per row to make
+> mismatches visible in `/monitor` → **Preview cancel**. See
+> [`docs/STRIPE_MODES.md`](docs/STRIPE_MODES.md) for the full guide,
+> including how to wipe test data before going live.
 
 ### Firefox extension (the important part)
 
@@ -140,13 +150,17 @@ npm run dev
 
 - Scraper runs as a Firefox extension on the Mac mini → no Cloudflare
   datacenter blocks, no TLS fingerprint problem, no captcha solvers.
-- Availability alerts go to a single `ALERT_EMAIL` (testing mode). The
-  paid per-subscriber fan-out is wired up in the DB but not in the worker
-  yet.
+- Availability alerts fan out to every paid subscriber of the affected
+  production (one email per subscriber per availability event, capped at
+  200/cycle). An operator copy to `ALERT_EMAIL` is sent in parallel on
+  each transition for monitoring.
 - Stripe Checkout is live at £2/month per production with both auto-renew
   and one-off options. The refund guarantee ("no alerts, no charge") is
   enforced by `subscription-management` on cancel, and Stripe's
   `cancel_at` stops renewals 7 days after each production's `end_date`.
-- The `/monitor` dashboard exposes a one-click sender for every
-  lifecycle email template (signup, renewal, cancel, expiry) via the
-  admin-gated `send-test-email` edge function.
+- The `/monitor` dashboard exposes:
+  - a one-click sender for every lifecycle email template (signup,
+    renewal, cancel, expiry) via `send-test-email`;
+  - an admin **Preview cancel** panel that shows, for any subscription,
+    the exact refund + Stripe + email effect a cancel would produce —
+    read-only, powered by `admin-preview-cancel`.

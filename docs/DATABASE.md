@@ -45,7 +45,8 @@ One row per show we scrape.
 | `scrape_disabled_reason`            | `text`        | if non-null, the extension skips this production                                |
 | `last_seen_status`                  | `text`        | `unknown` \| `available` \| `unavailable`                                       |
 | `last_checked_at`                   | `timestamptz` | set by `report-scrape` on every scrape cycle                                    |
-| `last_standing_tickets_found_at`    | `timestamptz` | set when a scrape returns `available`                                           |
+| `last_standing_tickets_found_at`    | `timestamptz` | set on every scrape cycle while tickets are available                           |
+| `last_availability_transition_at`   | `timestamptz` | set **only** on `unavailable → available` flips; anchors per-subscriber alert fan-out |
 | `description`                       | `text`        | optional marketing copy                                                         |
 | `poster_url`                        | `text`        | optional                                                                        |
 | `start_date` / `end_date`           | `date`        | the extension only scrapes productions where today ∈ [start_date, end_date]     |
@@ -71,6 +72,8 @@ Links a user to a production they've paid to be alerted about.
 | `last_charge_amount_pence`   | `int`         | amount (pence) of the most recent charge                                        |
 | `management_token`           | `text`        | used by the manage-subscription links in email footers                          |
 | `cancellation_reason`        | `text`        | free-form, e.g. `user_cancel`, `production_ended`                               |
+| `last_alerted_at`            | `timestamptz` | most recent availability email sent to this subscriber; used to dedupe fan-out  |
+| `is_test_mode`               | `bool`        | `true` if created / activated while `STRIPE_SECRET_KEY` was `sk_test_…`. See [STRIPE_MODES.md](./STRIPE_MODES.md) |
 | `created_at` / `updated_at`  | `timestamptz` |                                                                                 |
 
 Unique on `(user_id, production_id)` so re-subscribing updates the row.
@@ -80,6 +83,15 @@ Unique on `(user_id, production_id)` so re-subscribing updates the row.
 `<= subscriptions.current_period_start`, then no tickets have been found
 during the current billing period and the subscription is eligible for a
 full refund of `last_payment_intent_id` on cancellation.
+
+**Alert fan-out** is keyed on `subscriptions.last_alerted_at` vs
+`productions.last_availability_transition_at`: whenever a scrape reports
+`available`, `report-scrape` emails every paid + in-window subscription
+whose `last_alerted_at` is NULL or older than the production's latest
+`unavailable → available` transition, then bumps `last_alerted_at` on
+each. This gives subscribers exactly one email per availability event
+(with a 200-per-cycle safety cap), while letting anyone who subscribed
+mid-availability catch the next cycle.
 
 ### `notification_logs`
 
@@ -172,3 +184,5 @@ See `supabase/migrations/20241114001_init.sql` and `20241116003_add_theatres_tab
 | `20260423002_extension_scraper.sql`            | `series_code` / `adapter`, `scrape_heartbeats` table         |
 | `20260423003_scraper_settings.sql`             | singleton `scraper_settings` table so the monitor knows the extension's active window |
 | `20260423004_billing_state.sql`                | billing state on `subscriptions` (Stripe ids, PaymentIntent, `current_period_start`, `payment_type`, `refunded` / `refund_failed` states) for the refund guarantee |
+| `20260423005_subscription_alerts.sql`          | `subscriptions.last_alerted_at` + `productions.last_availability_transition_at` + partial index for per-user availability fan-out |
+| `20260423006_stripe_mode_flag.sql`             | `subscriptions.is_test_mode` so test vs live Stripe rows can be told apart without calling Stripe |

@@ -193,6 +193,10 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
     last_payment_intent_id: lastPaymentIntentId,
     last_charge_amount_pence: lastChargeAmountPence,
     cancellation_reason: null,
+    // Re-stamp on activation in case a row created in one mode is
+    // activated after a key swap — whichever mode owns the actual
+    // Stripe IDs wins, which is always the mode we're running in now.
+    is_test_mode: stripeMode() === 'test',
   } as const;
 
   if (!subscription) {
