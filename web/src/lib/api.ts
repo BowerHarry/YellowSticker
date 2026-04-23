@@ -345,13 +345,14 @@ export const adminTestFixture = async (
 
 export const cancelSubscription = async (
   token: string,
+  options?: { cancelMode?: 'refund_now' | 'period_end' },
 ): Promise<{ success?: boolean; message?: string; error?: string }> => {
   const { data, error } = await callSupabaseFunction<{
     success: boolean;
     message: string;
   }>('subscription-management', {
     method: 'POST',
-    body: JSON.stringify({ action: 'cancel' }),
+    body: JSON.stringify({ action: 'cancel', cancelMode: options?.cancelMode }),
     params: { token },
   });
 

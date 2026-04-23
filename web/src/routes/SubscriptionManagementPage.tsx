@@ -39,6 +39,7 @@ export const SubscriptionManagementPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -65,21 +66,22 @@ export const SubscriptionManagementPage = () => {
     fetchSubscription();
   }, [token]);
 
-  const handleCancel = async () => {
+  const handleCancel = async (cancelMode: 'refund_now' | 'period_end' = 'period_end') => {
     if (!token || !subscription) return;
-    const willRefund = subscription.refundGuarantee?.applies;
-    const prompt = willRefund
-      ? 'Cancel now? Because no standing tickets have been found since your last payment, we\'ll refund it in full per our guarantee.'
-      : 'Cancel your subscription? You\'ll keep receiving alerts until the end of the current billing period.';
+    const prompt =
+      cancelMode === 'refund_now'
+        ? 'Cancel now and issue a full refund? Your access will end immediately.'
+        : 'Cancel at period end? You will keep alerts until the current period ends, but no refund will be issued.';
     if (!confirm(prompt)) {
       return;
     }
 
     setCancelling(true);
     try {
-      const result = await cancelSubscription(token);
+      const result = await cancelSubscription(token, { cancelMode });
       if (result.success) {
         setCancelSuccess(true);
+        setCancelMessage(result.message ?? 'Subscription cancelled.');
         // Refresh subscription data
         const updated = await getSubscriptionByToken(token);
         if (updated) {
@@ -205,7 +207,7 @@ export const SubscriptionManagementPage = () => {
           <h2 style={{ marginTop: 0 }}>Cancel Subscription</h2>
           {subscription.refundGuarantee?.applies ? (
             <p style={{ color: 'var(--text-muted)' }}>
-              <strong>You're covered by our guarantee.</strong> No standing tickets have been found since your last payment, so cancelling now will refund your last charge in full.
+              <strong>You&apos;re covered by our guarantee.</strong> No standing tickets have been found since your last payment. Choose whether to refund now (ends immediately) or keep access to period end (no refund).
             </p>
           ) : (
             <p style={{ color: 'var(--text-muted)' }}>
@@ -217,18 +219,33 @@ export const SubscriptionManagementPage = () => {
               {error}
             </div>
           )}
-          <button
-            onClick={handleCancel}
-            disabled={cancelling}
-            className="btn btn--full"
-            style={{ marginTop: '1rem' }}
-          >
-            {cancelling
-              ? 'Cancelling…'
-              : subscription.refundGuarantee?.applies
-                ? 'Cancel & get refund'
-                : 'Cancel Subscription'}
-          </button>
+          {subscription.refundGuarantee?.applies ? (
+            <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+              <button
+                onClick={() => handleCancel('refund_now')}
+                disabled={cancelling}
+                className="btn btn--full"
+              >
+                {cancelling ? 'Processing…' : 'Cancel now & refund in full'}
+              </button>
+              <button
+                onClick={() => handleCancel('period_end')}
+                disabled={cancelling}
+                className="btn btn--ghost btn--full"
+              >
+                {cancelling ? 'Processing…' : 'Cancel at period end (no refund)'}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => handleCancel('period_end')}
+              disabled={cancelling}
+              className="btn btn--full"
+              style={{ marginTop: '1rem' }}
+            >
+              {cancelling ? 'Cancelling…' : 'Cancel Subscription'}
+            </button>
+          )}
         </div>
       )}
 
@@ -236,7 +253,7 @@ export const SubscriptionManagementPage = () => {
         <div className="glass-card glass-card--accent">
           <h2 style={{ marginTop: 0 }}>Subscription Cancelled</h2>
           <p style={{ color: 'var(--text-muted)' }}>
-            Your subscription has been cancelled. You will continue to receive alerts until {formatDate(subscription.subscriptionEnd)}.
+            {cancelMessage ?? `Your subscription has been cancelled. You will continue to receive alerts until ${formatDate(subscription.subscriptionEnd)}.`}
           </p>
         </div>
       )}

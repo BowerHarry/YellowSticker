@@ -64,6 +64,8 @@ type SubscriptionRow = {
   created_at: string;
 };
 
+type CancelMode = 'refund_now' | 'period_end';
+
 // Decide whether the "no tickets found since last payment" guarantee
 // applies *right now* for this subscription. Returns a boolean + the data
 // used to reach the decision so we can show it to the user on the manage
@@ -216,7 +218,10 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'POST') {
-      const { action } = (await req.json()) as { action?: string };
+      const { action, cancelMode } = (await req.json()) as {
+        action?: string;
+        cancelMode?: CancelMode;
+      };
 
       if (action !== 'cancel') {
         return jsonResponse({ error: 'Invalid action' }, 400);
@@ -245,13 +250,20 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       const guarantee = computeRefundGuarantee(sub, production);
-      const shouldRefund = guarantee.applies && !!sub.last_payment_intent_id;
+      const refundEligible = guarantee.applies && !!sub.last_payment_intent_id;
+      const selectedMode: CancelMode = cancelMode === 'period_end' ? 'period_end' : 'refund_now';
+      const shouldRefund = selectedMode === 'refund_now' && refundEligible;
+      const keepUntilPeriodEnd = selectedMode === 'period_end';
 
       // Cancel Stripe side first — either immediately (refund path) or at
       // period end (normal path for auto-renew subs that received value).
       const isAutoRenew = sub.payment_type === 'subscription';
       try {
-        await cancelStripeSide(sub, { immediate: shouldRefund || !isAutoRenew });
+        if (isAutoRenew) {
+          await cancelStripeSide(sub, { immediate: shouldRefund });
+        } else if (shouldRefund) {
+          await cancelStripeSide(sub, { immediate: true });
+        }
       } catch (error) {
         console.error('Error cancelling Stripe subscription:', error);
         // Continue — we still want to reflect user intent in our DB.
@@ -270,18 +282,30 @@ Deno.serve(async (req) => {
         }
       }
 
-      const newPaymentStatus =
-        refundStatus === 'refunded'
-          ? 'refunded'
-          : refundStatus === 'refund_failed'
-            ? 'refund_failed'
-            : 'cancelled';
+      const newPaymentStatus = (() => {
+        if (refundStatus === 'refunded') return 'refunded';
+        if (refundStatus === 'refund_failed') return 'refund_failed';
+        // Period-end choice keeps access alive (and alert-eligible) until
+        // subscription_end, while preventing further renewal via Stripe
+        // cancel_at_period_end.
+        if (keepUntilPeriodEnd) return 'paid';
+        // Legacy immediate-cancel path (e.g. one-time with no refund).
+        return 'cancelled';
+      })();
+
+      const cancellationReason = (() => {
+        if (refundStatus === 'refunded' || refundStatus === 'refund_failed') {
+          return 'user_cancel_refund_now';
+        }
+        if (keepUntilPeriodEnd) return 'user_cancel_period_end';
+        return 'user_cancel';
+      })();
 
       const { error: updateError } = await adminClient
         .from('subscriptions')
         .update({
           payment_status: newPaymentStatus,
-          cancellation_reason: 'user_cancel',
+          cancellation_reason: cancellationReason,
         })
         .eq('id', sub.id);
 
@@ -298,8 +322,11 @@ Deno.serve(async (req) => {
           .eq('id', sub.user_id)
           .maybeSingle();
         if (user?.email && production) {
-          const effective =
-            shouldRefund || !isAutoRenew ? ('immediately' as const) : ('period_end' as const);
+          const effective = shouldRefund
+            ? ('immediately' as const)
+            : keepUntilPeriodEnd && isAutoRenew
+              ? ('period_end' as const)
+              : ('immediately' as const);
           const { subject, html } = cancellationEmail(
             {
               name: (production as ProductionRecord).name,
@@ -349,7 +376,7 @@ Deno.serve(async (req) => {
         if (refundStatus === 'refund_failed') {
           return 'Subscription cancelled. We tried to refund your last payment per our guarantee but the refund failed — we\'ll follow up manually shortly.';
         }
-        if (isAutoRenew) {
+        if (keepUntilPeriodEnd) {
           return 'Subscription cancelled. You\'ll continue to receive alerts until the end of the current billing period.';
         }
         return 'Subscription cancelled.';
