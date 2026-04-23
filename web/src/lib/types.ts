@@ -41,12 +41,25 @@ export interface ServiceHealth {
   healthy: boolean;
 }
 
+export interface ScraperSettingsSummary {
+  pollMinutes: number;
+  activeHoursStart: number;
+  activeHoursEnd: number;
+  timezone: string;
+  updatedAt: string | null;
+}
+
 export interface ScraperHealth extends ServiceHealth {
+  status: 'healthy' | 'unhealthy' | 'paused';
   lastCheckedAt: string | null;
   lastHeartbeatAt: string | null;
   lastHeartbeatKind: string | null;
   recentStuck: boolean;
   hasFailedProductions: boolean;
+  withinActiveWindow: boolean;
+  graceMinutes: number;
+  extensionVersion: string | null;
+  settings: ScraperSettingsSummary;
 }
 
 export interface DatabaseHealth extends ServiceHealth {

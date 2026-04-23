@@ -75,6 +75,11 @@ const formatTimestamp = (iso: string | null) => {
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 };
 
+const formatHour = (hour: number): string => {
+  const h = ((hour % 24) + 24) % 24;
+  return `${h.toString().padStart(2, '0')}:00`;
+};
+
 const isAuthenticated = (): boolean => {
   const token = localStorage.getItem('admin_token');
   const expiresAt = localStorage.getItem('admin_token_expires');
@@ -206,9 +211,13 @@ export const MonitorPage = () => {
         </button>
       </div>
       <div className="grid" style={{ gap: '1.5rem', padding: '2rem 0' }}>
-        <SectionCard title="Productions">
+        <SectionCard title="Active productions">
         <div className="grid" style={{ gap: '0.75rem' }}>
-          {status.productions.map(renderProduction)}
+          {status.productions.length === 0 ? (
+            <p style={{ margin: 0, color: 'var(--muted)' }}>No active productions today.</p>
+          ) : (
+            status.productions.map(renderProduction)
+          )}
         </div>
       </SectionCard>
 
@@ -216,14 +225,21 @@ export const MonitorPage = () => {
         <div className="grid" style={{ gap: '0.75rem' }}>
           <StatusRow
             label="Firefox scraper extension"
-            healthy={services.scraper.healthy}
-            detail={
-              services.scraper.recentStuck
-                ? 'Reported stuck — visit the box office site once on the Mac mini'
-                : services.scraper.lastHeartbeatAt
-                  ? `Last heartbeat ${formatTimestamp(services.scraper.lastHeartbeatAt)}`
-                  : 'No heartbeat received yet'
-            }
+            status={services.scraper.status}
+            detail={(() => {
+              const s = services.scraper;
+              const window = `${formatHour(s.settings.activeHoursStart)}–${formatHour(s.settings.activeHoursEnd)} ${s.settings.timezone}`;
+              if (s.recentStuck) {
+                return 'Reported stuck — visit the box office site once on the Mac mini';
+              }
+              if (!s.withinActiveWindow) {
+                return `Paused until ${formatHour(s.settings.activeHoursStart)} (${window})`;
+              }
+              if (!s.lastHeartbeatAt) {
+                return `No heartbeat yet — expected every ${s.settings.pollMinutes}m within ${window}`;
+              }
+              return `Last heartbeat ${formatTimestamp(s.lastHeartbeatAt)} · every ${s.settings.pollMinutes}m, ${window}`;
+            })()}
           />
           <StatusRow
             label="Database"

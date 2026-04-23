@@ -48,6 +48,13 @@ type Performance = {
   standCount?: number;
 };
 
+type ScraperSettings = {
+  pollMinutes?: number;
+  activeHoursStart?: number;
+  activeHoursEnd?: number;
+  timezone?: string;
+};
+
 type ReportBody = {
   kind: Kind;
   extensionVersion?: string;
@@ -58,6 +65,7 @@ type ReportBody = {
   performances?: Performance[];
   detail?: Record<string, unknown>;
   reason?: string;
+  scraperSettings?: ScraperSettings;
 };
 
 type ProductionRow = {
@@ -248,6 +256,29 @@ Deno.serve(async (req) => {
   if (heartbeatError) {
     console.error('Failed to insert heartbeat', heartbeatError);
     // Non-fatal — keep going so the availability update / email still fires.
+  }
+
+  // Upsert the extension's current scheduler settings so the monitor
+  // dashboard can compute online-vs-paused correctly. Missing fields fall
+  // back to whatever is already stored (the default row is seeded by the
+  // migration).
+  if (body.scraperSettings) {
+    const s = body.scraperSettings;
+    const patch: Record<string, unknown> = {
+      id: 1,
+      updated_at: new Date().toISOString(),
+      extension_version: safeString(body.extensionVersion) ?? null,
+    };
+    if (safeNumber(s.pollMinutes) !== undefined) patch.poll_minutes = s.pollMinutes;
+    if (safeNumber(s.activeHoursStart) !== undefined) patch.active_hours_start = s.activeHoursStart;
+    if (safeNumber(s.activeHoursEnd) !== undefined) patch.active_hours_end = s.activeHoursEnd;
+    if (safeString(s.timezone)) patch.timezone = s.timezone;
+    const { error: settingsError } = await adminClient
+      .from('scraper_settings')
+      .upsert(patch, { onConflict: 'id' });
+    if (settingsError) {
+      console.error('Failed to upsert scraper_settings', settingsError);
+    }
   }
 
   // --- scrape report ------------------------------------------------------

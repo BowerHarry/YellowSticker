@@ -31,6 +31,46 @@ const startOfMonthIso = (date: Date) => {
   return copy.toISOString();
 };
 
+// Hour-of-day (0-23) in the given IANA zone. Returns NaN if the zone is
+// invalid (unlikely — we validated the input elsewhere).
+const hourInZone = (when: Date, timezone: string): number => {
+  try {
+    const value = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone,
+      hour: '2-digit',
+      hour12: false,
+    }).format(when);
+    return Number(value);
+  } catch {
+    return when.getUTCHours();
+  }
+};
+
+const isWithinWindow = (hour: number, start: number, end: number): boolean => {
+  if (!Number.isFinite(hour) || !Number.isFinite(start) || !Number.isFinite(end)) return true;
+  if (start === end) return true; // degenerate: always active
+  if (start < end) return hour >= start && hour < end;
+  // crosses midnight (e.g. 22-6)
+  return hour >= start || hour < end;
+};
+
+// Today's date in the given timezone as 'YYYY-MM-DD'. Used for filtering
+// productions by start_date / end_date.
+const todayIsoInZone = (when: Date, timezone: string): string => {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(when);
+    // en-CA gives YYYY-MM-DD
+    return parts;
+  } catch {
+    return when.toISOString().slice(0, 10);
+  }
+};
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -39,10 +79,60 @@ Deno.serve(async (req) => {
 
   try {
     const now = new Date();
-    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
     const dayStartIso = startOfDayIso(now);
     const monthStartIso = startOfMonthIso(now);
 
+    // --- Scraper settings (user-editable in the extension) ---------------
+    // Seeded by the migration, then kept fresh by report-scrape. Fallbacks
+    // mirror the extension's DEFAULTS so a pre-upgrade DB still behaves
+    // sensibly.
+    const scraperSettingsDefaults = {
+      pollMinutes: 10,
+      activeHoursStart: 8,
+      activeHoursEnd: 22,
+      timezone: 'Europe/London',
+    };
+    let scraperSettings = { ...scraperSettingsDefaults };
+    let scraperSettingsUpdatedAt: string | null = null;
+    let extensionVersion: string | null = null;
+    try {
+      const { data, error } = await adminClient
+        .from('scraper_settings')
+        .select('poll_minutes, active_hours_start, active_hours_end, timezone, extension_version, updated_at')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) {
+        scraperSettings = {
+          pollMinutes: Number(data.poll_minutes) || scraperSettingsDefaults.pollMinutes,
+          activeHoursStart: Number(data.active_hours_start) ?? scraperSettingsDefaults.activeHoursStart,
+          activeHoursEnd: Number(data.active_hours_end) ?? scraperSettingsDefaults.activeHoursEnd,
+          timezone: typeof data.timezone === 'string' && data.timezone ? data.timezone : scraperSettingsDefaults.timezone,
+        };
+        scraperSettingsUpdatedAt = data.updated_at ?? null;
+        extensionVersion = data.extension_version ?? null;
+      }
+    } catch (error) {
+      console.error('Failed to load scraper_settings — falling back to defaults', error);
+    }
+
+    const currentHour = hourInZone(now, scraperSettings.timezone);
+    const withinActiveWindow = isWithinWindow(
+      currentHour,
+      scraperSettings.activeHoursStart,
+      scraperSettings.activeHoursEnd,
+    );
+    // Grace window = 2x configured poll interval (so an occasional missed
+    // tick doesn't flap the dashboard). Floor to at least 2 minutes.
+    const graceMinutes = Math.max(2, Math.ceil(scraperSettings.pollMinutes * 2));
+    const graceCutoff = new Date(now.getTime() - graceMinutes * 60 * 1000);
+    const graceCutoffIso = graceCutoff.toISOString();
+
+    const todayIso = todayIsoInZone(now, scraperSettings.timezone);
+
+    // --- Productions: only active ones are relevant to monitor -----------
+    // "Active" = automated scraper enabled and today within the configured
+    // run window.
     const productionStatuses: Array<{
       id: string;
       name: string;
@@ -54,46 +144,49 @@ Deno.serve(async (req) => {
     try {
       const { data: productions, error: productionsError } = await adminClient
         .from('productions')
-        .select('id,name,last_checked_at,last_standing_tickets_found_at,last_seen_status')
+        .select('id,name,last_checked_at,last_standing_tickets_found_at,last_seen_status,adapter,scrape_disabled_reason,start_date,end_date')
+        .neq('adapter', 'none')
+        .is('scrape_disabled_reason', null)
         .order('name');
 
       if (productionsError) throw productionsError;
 
-      const currentHour = now.getUTCHours();
-      const isRunningHours = currentHour >= 8 && currentHour < 18; // 8am-6pm UTC
+      for (const production of (productions ?? []) as Array<
+        Pick<
+          ProductionRecord,
+          | 'id'
+          | 'name'
+          | 'last_checked_at'
+          | 'last_standing_tickets_found_at'
+          | 'last_seen_status'
+          | 'adapter'
+          | 'scrape_disabled_reason'
+          | 'start_date'
+          | 'end_date'
+        >
+      >) {
+        if (production.start_date && production.start_date.slice(0, 10) > todayIso) continue;
+        if (production.end_date && production.end_date.slice(0, 10) < todayIso) continue;
 
-      for (const production of (productions ?? []) as Pick<
-        ProductionRecord,
-        'id' | 'name' | 'last_checked_at' | 'last_standing_tickets_found_at' | 'last_seen_status'
-      >[]) {
         const lastChecked = production.last_checked_at ? new Date(production.last_checked_at) : null;
         const lastSeenStatus = (production.last_seen_status as 'available' | 'unavailable' | 'unknown' | null) ?? null;
-        const wasRecent = !!lastChecked && lastChecked >= fifteenMinutesAgo;
+        const wasRecent = !!lastChecked && lastChecked >= graceCutoff;
         const lastRunPassed = lastSeenStatus !== 'unknown' && lastSeenStatus !== null;
 
         let status: 'healthy' | 'unhealthy' | 'paused';
-        if (!lastChecked) {
-          // Never checked
+        if (!withinActiveWindow) {
+          // Extension isn't expected to be running right now.
+          status = 'paused';
+        } else if (!lastChecked) {
           status = 'unhealthy';
         } else if (lastSeenStatus === 'unknown') {
-          // Last run failed
           status = 'unhealthy';
         } else if (wasRecent && lastRunPassed) {
-          // Recent (within 15 mins) and passed - definitely healthy
           status = 'healthy';
-        } else if (!isRunningHours && lastRunPassed) {
-          // Outside running hours, last run passed, but it's been >15 mins
-          // Show as paused (grey) since job isn't running during these hours
-          status = 'paused';
-        } else if (isRunningHours && lastRunPassed && !wasRecent) {
-          // Inside running hours, last run passed, but it's been >15 mins
-          // Should have run by now - show as unhealthy (red)
+        } else if (lastRunPassed && !wasRecent) {
+          // Inside the active window but no scrape inside the grace window.
           status = 'unhealthy';
-        } else if (lastRunPassed) {
-          // Last run passed (fallback - shouldn't normally reach here)
-          status = 'healthy';
         } else {
-          // Shouldn't happen, but default to unhealthy
           status = 'unhealthy';
         }
 
@@ -110,13 +203,12 @@ Deno.serve(async (req) => {
       console.error('Failed to load productions', error);
     }
 
-    // Scraper health: the Firefox extension posts a heartbeat to
-    // `scrape_heartbeats` on every scrape cycle. If we haven't seen any
-    // heartbeat in the last 30 minutes during active hours, something is
-    // wrong (browser closed, laptop asleep, extension crashed, etc).
-    // We also flag unhealthy if a 'stuck' heartbeat is the most recent
-    // thing we've heard from it.
-    const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
+    // --- Scraper health: align with the extension's schedule -------------
+    // The Firefox extension posts a heartbeat to `scrape_heartbeats` on
+    // every tick. Outside the configured active window it isn't expected
+    // to tick at all, so we render it as "paused" instead of "unhealthy".
+    // Inside the window we require a heartbeat within the grace cutoff
+    // (2x configured poll interval) to call the extension online.
     let latestHeartbeatAt: string | null = null;
     let latestHeartbeatKind: string | null = null;
     let recentStuck = false;
@@ -132,7 +224,7 @@ Deno.serve(async (req) => {
         latestHeartbeatAt = rows[0].reported_at;
         latestHeartbeatKind = rows[0].kind;
         recentStuck = rows.some(
-          (r) => r.kind === 'stuck' && r.reported_at >= thirtyMinAgo,
+          (r) => r.kind === 'stuck' && r.reported_at >= graceCutoffIso,
         );
       }
     } catch (error) {
@@ -140,8 +232,18 @@ Deno.serve(async (req) => {
     }
 
     const hasFailedProductions = productionStatuses.some((p) => p.lastSeenStatus === 'unknown');
-    const heartbeatFresh = !!latestHeartbeatAt && latestHeartbeatAt >= thirtyMinAgo;
-    const scraperHealthy = heartbeatFresh && !recentStuck && !hasFailedProductions;
+    const heartbeatFresh = !!latestHeartbeatAt && latestHeartbeatAt >= graceCutoffIso;
+    let scraperStatus: 'healthy' | 'unhealthy' | 'paused';
+    if (!withinActiveWindow) {
+      scraperStatus = 'paused';
+    } else if (recentStuck) {
+      scraperStatus = 'unhealthy';
+    } else if (heartbeatFresh && !hasFailedProductions) {
+      scraperStatus = 'healthy';
+    } else {
+      scraperStatus = 'unhealthy';
+    }
+    const scraperHealthy = scraperStatus === 'healthy';
     const lastCheckedAt = productionStatuses.reduce<string | null>((latest, p) => {
       if (!p.lastCheckedAt) return latest;
       if (!latest || p.lastCheckedAt > latest) return p.lastCheckedAt;
@@ -229,11 +331,19 @@ Deno.serve(async (req) => {
       services: {
         scraper: {
           healthy: scraperHealthy,
+          status: scraperStatus,
           lastCheckedAt,
           lastHeartbeatAt: latestHeartbeatAt,
           lastHeartbeatKind: latestHeartbeatKind,
           recentStuck,
           hasFailedProductions,
+          withinActiveWindow,
+          graceMinutes,
+          extensionVersion,
+          settings: {
+            ...scraperSettings,
+            updatedAt: scraperSettingsUpdatedAt,
+          },
         },
         database: {
           healthy: databaseHealthy,

@@ -21,6 +21,9 @@ export type ProductionRecord = {
   poster_url?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  series_code?: string | null;
+  adapter?: string | null;
+  scrape_disabled_reason?: string | null;
 };
 
 export type SubscriptionPayload = {

@@ -410,6 +410,17 @@ const listActiveProductions = async (settings) => {
   });
 };
 
+// Snapshot of the scheduler settings that are meaningful server-side (the
+// monitor dashboard needs them to decide "is the extension online or just
+// paused outside its active window?"). We deliberately do NOT send
+// credentials (supabaseAnonKey, scraperSecret) — those stay client-side.
+const schedulerSettingsFor = (settings) => ({
+  pollMinutes: Number(settings.pollMinutes) || DEFAULTS.pollMinutes,
+  activeHoursStart: Number(settings.activeHoursStart) ?? DEFAULTS.activeHoursStart,
+  activeHoursEnd: Number(settings.activeHoursEnd) ?? DEFAULTS.activeHoursEnd,
+  timezone: 'Europe/London',
+});
+
 const postReport = async (settings, body) => {
   const url = `${settings.supabaseUrl}/functions/v1/report-scrape`;
   const resp = await fetch(url, {
@@ -420,7 +431,11 @@ const postReport = async (settings, body) => {
       Authorization: `Bearer ${settings.supabaseAnonKey}`,
       'X-Scraper-Secret': settings.scraperSecret,
     },
-    body: JSON.stringify({ ...body, extensionVersion: EXTENSION_VERSION }),
+    body: JSON.stringify({
+      ...body,
+      extensionVersion: EXTENSION_VERSION,
+      scraperSettings: schedulerSettingsFor(settings),
+    }),
   });
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');

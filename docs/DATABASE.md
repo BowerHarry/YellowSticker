@@ -101,6 +101,23 @@ Append-only log of scrape-result reports from the Firefox extension.
 Indexed on `reported_at` (desc) and `(production_id, reported_at desc)` so
 the status dashboard and admin queries are cheap.
 
+### `scraper_settings`
+
+Singleton row (always `id = 1`) holding the Firefox extension's current
+scheduler settings. Upserted by `report-scrape` on every heartbeat; read by
+`status-dashboard` to decide whether a missing heartbeat means the
+extension is offline or just outside its configured active window.
+
+| column               | type          | notes                                                 |
+|----------------------|---------------|-------------------------------------------------------|
+| `id`                 | `int`         | always `1` (`CHECK` constraint)                       |
+| `poll_minutes`       | `int`         | extension's `pollMinutes` setting                     |
+| `active_hours_start` | `int`         | hour-of-day (0-23) the window opens                   |
+| `active_hours_end`   | `int`         | hour-of-day (0-23, exclusive) the window closes       |
+| `timezone`           | `text`        | IANA zone used for the window (e.g. `Europe/London`)  |
+| `extension_version`  | `text`        | last-reported version string                          |
+| `updated_at`         | `timestamptz` | auto-touched on every upsert                          |
+
 ### `scraper_usage_daily`
 
 Legacy daily counter written by the old ScrapingBee-based scraper. **Not
@@ -139,4 +156,5 @@ See `supabase/migrations/20241114001_init.sql` and `20241116003_add_theatres_tab
 | `20241116002_add_production_dates.sql`         | `start_date` / `end_date`                                    |
 | `20241116003_add_theatres_table.sql`           | `theatres` table + FK                                        |
 | `20260423001_remove_scrape_cron.sql`           | unschedules the old pg_cron job                              |
-| `20260423002_extension_scraper.sql`            | **NEW** — `series_code` / `adapter`, `scrape_heartbeats` table |
+| `20260423002_extension_scraper.sql`            | `series_code` / `adapter`, `scrape_heartbeats` table         |
+| `20260423003_scraper_settings.sql`             | **NEW** — singleton `scraper_settings` table so the monitor knows the extension's active window |

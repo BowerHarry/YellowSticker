@@ -19,6 +19,7 @@
 │   ─ subscriptions          ─ admin-auth                      │
 │   ─ notification_logs      ─ status-dashboard                │
 │   ─ scrape_heartbeats      ─ report-scrape  ◀─── POST        │
+│   ─ scraper_settings                                         │
 └──────────────────────▲───────────────────────────────────────┘
                        │ service-role writes via report-scrape
                        │ (shared-secret header)
@@ -66,6 +67,10 @@ the alerting core.
   - `report-scrape` — *write* endpoint used by the Firefox extension. Takes
     a shared-secret header (`X-Scraper-Secret`) and:
     - inserts a row into `scrape_heartbeats`
+    - upserts the extension's current scheduler settings
+      (`pollMinutes`, `activeHoursStart`, `activeHoursEnd`, `timezone`) into
+      the singleton `scraper_settings` row so the monitor can tell "offline"
+      from "outside active hours"
     - updates `productions.last_seen_status` / `last_checked_at`
     - fires a Resend availability email on `unavailable → available`
     - fires a Resend "scraper stuck" email (throttled) when the extension
@@ -141,9 +146,11 @@ The trade-off is that the Mac mini has to keep Firefox running. Handled via
 
 ## Failure modes & recovery
 
-- **Mac mini offline / Firefox closed** → no heartbeats; the `/monitor`
-  dashboard flags the scraper as unhealthy (no heartbeat in 30 min during
-  active hours).
+- **Mac mini offline / Firefox closed** → no heartbeats. During the
+  extension's configured active window (`scraper_settings.active_hours_*`)
+  the `/monitor` dashboard flags the scraper as unhealthy if no heartbeat
+  arrives within 2× `poll_minutes`. Outside the window it renders as
+  "paused" (grey) instead — the extension isn't expected to be running.
 - **Cloudflare escalates to interactive Turnstile checkbox** → the hidden
   tab refresh can't complete without a click. After 5 consecutive cycles
   the extension sends a `stuck` email. Fix: visit the site once in the
