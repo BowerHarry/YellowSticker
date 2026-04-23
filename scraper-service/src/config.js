@@ -1,11 +1,30 @@
 import 'dotenv/config';
 
+// Values from env.example that must be replaced before the worker will start.
+// Prevents a silent run with DNS failures / auth errors when .env is still
+// full of template values.
+const PLACEHOLDERS = new Set([
+  'https://your-project.supabase.co',
+  'supabase-anon-key',
+  'supabase-service-role-key',
+  'eyJ...',
+  're_...',
+  'you@example.com',
+  'your-db-password',
+]);
+
 const required = (name) => {
   const value = process.env[name];
   if (!value || value.trim() === '') {
     throw new Error(`Missing required environment variable: ${name}`);
   }
-  return value.trim();
+  const trimmed = value.trim();
+  if (PLACEHOLDERS.has(trimmed)) {
+    throw new Error(
+      `Environment variable ${name} is still set to the placeholder value "${trimmed}". Edit your .env file with real credentials.`,
+    );
+  }
+  return trimmed;
 };
 
 const optional = (name, fallback) => {

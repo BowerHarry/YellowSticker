@@ -199,4 +199,13 @@ A previous run is still going (they normally finish in 2–5 minutes; if there a
 
 ### `CLOUDFLARE_BLOCKED` in logs
 
-The worker waited ~30s in-browser for the challenge to clear but it didn't. Because we're running from a residential IP this should be rare. If it becomes frequent, increase `SCRAPE_WAIT_MS` to e.g. `25000`.
+The worker waited up to 90s in-browser for the Cloudflare interstitial to clear and it didn't. Some notes:
+
+- The scraper uses a **persistent Chromium profile** mounted via the `chrome-profile` Docker volume. Once we've cleared Cloudflare once for a domain, the `cf_clearance` cookie is reused on subsequent runs — so repeated failures usually mean the cookie expired or our fingerprint changed. First runs after a fresh install always take longest.
+- If this happens a lot, bump `SCRAPE_WAIT_MS` higher (e.g. `25000`).
+- Nuking the profile can help if it gets into a bad state: `docker compose down && docker volume rm scraper-service_chrome-profile && docker compose up -d`.
+- Cloudflare tiers its protection per URL: listing/calendar pages usually clear easily; performance-detail pages are more aggressive. The worker already passes the calendar URL as `Referer` to the performance pages to look like normal click-through navigation.
+
+### `Queue-it page detected` in logs
+
+The site routed us into a virtual waiting room. This isn't fatal — the scraper still returns the HTML and the scraper code decides whether to treat the production as unavailable or try again next cycle. It usually means the box office is under heavy load (e.g. new on-sale).

@@ -13,6 +13,11 @@ services:
       # Optional: only needed if you want to hit the /health endpoint from your LAN.
       # The worker does NOT need inbound traffic to do its job.
       - "127.0.0.1:3000:3000"
+    volumes:
+      # Persistent Chromium profile so Cloudflare's `cf_clearance` cookie and
+      # other anti-bot state survive container restarts. Keeping this warm
+      # massively reduces how often we hit the CF interstitial.
+      - chrome-profile:/app/.chrome-profile
     deploy:
       resources:
         limits:
@@ -32,3 +37,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+volumes:
+  chrome-profile:

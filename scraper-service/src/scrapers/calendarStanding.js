@@ -265,7 +265,10 @@ export const createCalendarStandingScraper = ({
     for (const id of targetIds) {
       const perfUrl = buildPerformanceUrl(id, startDateParam);
       try {
-        const perfHtml = await fetchRendered(browser, perfUrl);
+        // Send the calendar URL as the Referer — a real user reached the
+        // performance page by clicking from the calendar, so a direct hit
+        // with no referer raises bot-suspicion on Cloudflare.
+        const perfHtml = await fetchRendered(browser, perfUrl, { referer: calendarUrl });
         const circles = extractStandingCircles(perfHtml, prefixes);
         const available = circles.filter((c) => c.className !== 'na');
         log.info(

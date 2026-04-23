@@ -50,8 +50,10 @@ RUN npm install --omit=dev && npm cache clean --force
 
 # Create a non-root user and move the Puppeteer cache into a predictable location
 # so the Chromium install is owned by the same user that runs the process.
+# Also pre-create the persistent Chromium profile directory so the Docker volume
+# mount (see docker-compose.yml) inherits the right ownership.
 RUN useradd --create-home --shell /bin/bash scraper \
-  && mkdir -p /home/scraper/.cache \
+  && mkdir -p /home/scraper/.cache /app/.chrome-profile \
   && chown -R scraper:scraper /app /home/scraper
 
 USER scraper

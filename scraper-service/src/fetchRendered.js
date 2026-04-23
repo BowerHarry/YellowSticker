@@ -24,50 +24,74 @@ const looksLikeQueuePage = (html) =>
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// How long (total, seconds) to keep polling while Cloudflare's interstitial
+// is visible before giving up. Split into 5-second intervals.
+const CF_MAX_WAIT_SECONDS = 90;
+
 /**
  * Navigates a fresh page to `url` and returns the rendered HTML.
  * Handles Cloudflare interstitials by waiting and retrying in-browser.
  *
+ * @param {import('puppeteer').Browser} browser
+ * @param {string} url
+ * @param {object} [options]
+ * @param {number} [options.waitMs]    JS settle time after DOM-content-loaded.
+ * @param {string} [options.referer]   Sent as `Referer` header. Pass the page
+ *                                     the user "came from" (usually the
+ *                                     calendar URL) to avoid looking like a
+ *                                     direct deep-link hit.
+ *
  * Throws:
  *   - Error('CLOUDFLARE_BLOCKED') if the interstitial never clears.
- *   - Error('QUEUE_PAGE') if the page is stuck behind a Queue-it waiting room.
  *   - Any underlying Puppeteer navigation error.
  */
-export const fetchRendered = async (browser, url, { waitMs = config.scrape.waitMs } = {}) => {
+export const fetchRendered = async (browser, url, { waitMs = config.scrape.waitMs, referer } = {}) => {
   const page = await newStealthPage(browser);
   const start = Date.now();
   try {
-    log.info(`GET ${url} (wait=${waitMs}ms)`);
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    log.info(`GET ${url} (wait=${waitMs}ms${referer ? `, referer=${referer}` : ''})`);
 
-    // Give JS a moment before we start interacting / inspecting.
-    await sleep(2000 + Math.random() * 2000);
+    const gotoOptions = { waitUntil: 'domcontentloaded', timeout: 120000 };
+    if (referer) gotoOptions.referer = referer;
+    await page.goto(url, gotoOptions);
 
-    // Light human-ish interaction to help clear challenges.
-    await page.mouse.move(100 + Math.random() * 300, 100 + Math.random() * 300);
-    for (let i = 0; i < 3; i++) {
-      await page.evaluate(() => window.scrollBy(0, 200 + Math.random() * 300));
-      await sleep(400 + Math.random() * 600);
+    // Short initial settle before we decide whether we're on a challenge page.
+    await sleep(1500 + Math.random() * 1500);
+
+    let html = await page.content();
+
+    // Only simulate human activity if we landed on actual content. Scrolling
+    // on a Cloudflare challenge page can interfere with the challenge script
+    // and has been observed to make things worse.
+    if (!looksLikeCloudflareChallenge(html)) {
+      await page.mouse.move(100 + Math.random() * 300, 100 + Math.random() * 300);
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate(() => window.scrollBy(0, 200 + Math.random() * 300));
+        await sleep(400 + Math.random() * 600);
+      }
+      if (waitMs > 0) await sleep(waitMs);
+    } else {
+      // We're on a challenge page — do nothing, let CF's JS run.
+      log.warn('Cloudflare interstitial detected on initial load; waiting quietly');
     }
 
-    if (waitMs > 0) await sleep(waitMs);
-
-    // If we landed on a Cloudflare interstitial, keep waiting (up to ~30s).
-    let html = await page.content();
+    // Poll until the challenge clears (or we give up).
+    html = await page.content();
     if (looksLikeCloudflareChallenge(html)) {
-      log.warn('Cloudflare interstitial detected; waiting for it to clear');
-      for (let i = 0; i < 6; i++) {
+      const intervals = Math.ceil(CF_MAX_WAIT_SECONDS / 5);
+      for (let i = 0; i < intervals; i++) {
         await sleep(5000);
-        await page.mouse.move(100 + Math.random() * 400, 100 + Math.random() * 400);
         html = await page.content();
         if (!looksLikeCloudflareChallenge(html)) {
           log.info(`Cloudflare cleared after ~${(i + 1) * 5}s`);
+          // Give the post-challenge redirect a moment to finish.
+          await sleep(2000);
+          html = await page.content();
           break;
         }
       }
     }
 
-    html = await page.content();
     if (looksLikeCloudflareChallenge(html)) {
       throw new Error('CLOUDFLARE_BLOCKED');
     }
