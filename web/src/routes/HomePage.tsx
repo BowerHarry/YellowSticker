@@ -13,7 +13,7 @@ const howItWorks = [
   {
     number: '2',
     title: 'Subscribe',
-    body: '£4.99/month per show for instant alerts',
+    body: '£2/month per show for instant alerts',
   },
   {
     number: '3',
@@ -47,7 +47,7 @@ export const HomePage = () => {
           </a>
         </div>
         <p className="hero__meta">
-          Just £4.99/month per show • Text or Email
+          Just £2/month per show • Text or Email
         </p>
       </section>
 

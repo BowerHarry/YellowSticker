@@ -102,7 +102,7 @@ export const SubscriptionForm = ({ production }: Props) => {
             />
             <div>
               <strong>Auto-renew monthly</strong>
-              <span className="payment-type-hint">£4.99/month, renews automatically</span>
+              <span className="payment-type-hint">£2/month, renews automatically</span>
             </div>
           </label>
           <label className="payment-type-option">
@@ -113,7 +113,7 @@ export const SubscriptionForm = ({ production }: Props) => {
             />
             <div>
               <strong>One month only</strong>
-              <span className="payment-type-hint">£4.99 one-time payment</span>
+              <span className="payment-type-hint">£2 one-time payment</span>
             </div>
           </label>
         </div>
@@ -149,8 +149,8 @@ export const SubscriptionForm = ({ production }: Props) => {
         {isSubmitting 
           ? 'Preparing checkout…' 
           : paymentType === 'subscription'
-            ? `Continue (£4.99/month / ${production.name})`
-            : `Continue (£4.99 one-time / ${production.name})`
+            ? `Continue (£2/month / ${production.name})`
+            : `Continue (£2 one-time / ${production.name})`
         }
       </button>
     </form>

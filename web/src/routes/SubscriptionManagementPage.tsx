@@ -5,8 +5,11 @@ import { getSubscriptionByToken, cancelSubscription } from '../lib/api';
 interface SubscriptionData {
   id: string;
   paymentStatus: string;
+  paymentType?: 'subscription' | 'one-time';
   subscriptionStart: string | null;
   subscriptionEnd: string | null;
+  currentPeriodStart?: string | null;
+  lastChargeAmountPence?: number | null;
   createdAt: string;
   isActive: boolean;
   user: {
@@ -20,6 +23,11 @@ interface SubscriptionData {
     slug: string;
     theatre: string;
     city?: string | null;
+  };
+  refundGuarantee?: {
+    applies: boolean;
+    since: string | null;
+    lastTicketsFoundAt: string | null;
   };
 }
 
@@ -59,8 +67,11 @@ export const SubscriptionManagementPage = () => {
 
   const handleCancel = async () => {
     if (!token || !subscription) return;
-    
-    if (!confirm('Are you sure you want to cancel your subscription? You will continue to receive alerts until the end of your current billing period.')) {
+    const willRefund = subscription.refundGuarantee?.applies;
+    const prompt = willRefund
+      ? 'Cancel now? Because no standing tickets have been found since your last payment, we\'ll refund it in full per our guarantee.'
+      : 'Cancel your subscription? You\'ll keep receiving alerts until the end of the current billing period.';
+    if (!confirm(prompt)) {
       return;
     }
 
@@ -189,9 +200,15 @@ export const SubscriptionManagementPage = () => {
       {subscription.isActive && !cancelSuccess && (
         <div className="glass-card">
           <h2 style={{ marginTop: 0 }}>Cancel Subscription</h2>
-          <p style={{ color: 'var(--text-muted)' }}>
-            Cancel your subscription to stop receiving alerts. You will continue to receive alerts until the end of your current billing period ({formatDate(subscription.subscriptionEnd)}).
-          </p>
+          {subscription.refundGuarantee?.applies ? (
+            <p style={{ color: 'var(--text-muted)' }}>
+              <strong>You're covered by our guarantee.</strong> No standing tickets have been found since your last payment, so cancelling now will refund your last charge in full.
+            </p>
+          ) : (
+            <p style={{ color: 'var(--text-muted)' }}>
+              Standing tickets have been found during this billing period, so we cannot refund. Cancelling will stop future charges; you'll keep receiving alerts until {formatDate(subscription.subscriptionEnd)}.
+            </p>
+          )}
           {error && (
             <div className="banner banner--error" style={{ marginBottom: '1rem' }}>
               {error}
@@ -203,7 +220,11 @@ export const SubscriptionManagementPage = () => {
             className="btn btn--full"
             style={{ marginTop: '1rem' }}
           >
-            {cancelling ? 'Cancelling…' : 'Cancel Subscription'}
+            {cancelling
+              ? 'Cancelling…'
+              : subscription.refundGuarantee?.applies
+                ? 'Cancel & get refund'
+                : 'Cancel Subscription'}
           </button>
         </div>
       )}

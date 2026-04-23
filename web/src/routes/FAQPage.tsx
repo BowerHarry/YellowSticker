@@ -21,14 +21,14 @@ export const FAQPage = () => {
           <section>
             <h2 style={{ marginTop: 0 }}>How much does it cost?</h2>
             <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Each production subscription costs £4.99 per month. You can choose to set up auto-renewal (subscription) or pay for one month at a time. You only pay for the shows you want to track.
+              Each production subscription costs £2 per month. You can set up auto-renewal (subscription) or pay for one month at a time. You only pay for the shows you want to track.
             </p>
           </section>
 
           <section>
             <h2 style={{ marginTop: 0 }}>How often do you check for tickets?</h2>
             <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              We check for standing tickets every 15 minutes during business hours (8am-6pm UTC).
+              We poll the box office every 10 minutes during our daily active window (8am–11pm London time). Outside that window we stand down to save resources; no sensible theatre releases standing tickets at 3am.
             </p>
           </section>
 

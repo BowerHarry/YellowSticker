@@ -168,6 +168,37 @@ export const getSubscriptionByToken = async (
   return data?.subscription || null;
 };
 
+export type TestEmailTemplate =
+  | 'signup-subscription'
+  | 'signup-one-time'
+  | 'renewal'
+  | 'cancel-refund'
+  | 'cancel-period-end'
+  | 'cancel-production-ended'
+  | 'expiry';
+
+// Sends a stubbed copy of the given template via the admin-only
+// `send-test-email` edge function. Auth is basic-auth against
+// ADMIN_USERNAME / ADMIN_PASSWORD — the caller must pass the admin's
+// password so we can sign the request.
+export const sendTestEmail = async (
+  template: TestEmailTemplate,
+  credentials: { username: string; password: string },
+  to?: string,
+): Promise<{ ok?: boolean; messageId?: string | null; error?: string }> => {
+  const basic = btoa(`${credentials.username}:${credentials.password}`);
+  const { data, error } = await callSupabaseFunction<{
+    ok: boolean;
+    messageId: string | null;
+  }>('send-test-email', {
+    method: 'POST',
+    headers: { 'X-Admin-Authorization': `Basic ${basic}` },
+    body: JSON.stringify({ template, to }),
+  });
+  if (error) return { error };
+  return { ok: data?.ok ?? false, messageId: data?.messageId ?? null };
+};
+
 export const cancelSubscription = async (
   token: string,
 ): Promise<{ success?: boolean; message?: string; error?: string }> => {

@@ -54,19 +54,32 @@ One row per show we scrape.
 
 Links a user to a production they've paid to be alerted about.
 
-| column                | type          | notes                                                       |
-|-----------------------|---------------|-------------------------------------------------------------|
-| `id`                  | `uuid`        | primary key                                                 |
-| `user_id`             | `uuid`        | FK → `users.id` (cascade)                                   |
-| `production_id`       | `uuid`        | FK → `productions.id` (cascade)                             |
-| `payment_status`      | `text`        | `pending` \| `paid` \| `failed` \| `cancelled`              |
-| `subscription_start`  | `timestamptz` | filled in by the Stripe webhook                             |
-| `subscription_end`    | `timestamptz` | filled in by the Stripe webhook                             |
-| `stripe_session_id`   | `text`        | Stripe Checkout session                                     |
-| `management_token`    | `text`        | used by the manage-subscription links in email footers      |
-| `created_at` / `updated_at` | `timestamptz` |                                                       |
+| column                       | type          | notes                                                                           |
+|------------------------------|---------------|---------------------------------------------------------------------------------|
+| `id`                         | `uuid`        | primary key                                                                     |
+| `user_id`                    | `uuid`        | FK → `users.id` (cascade)                                                       |
+| `production_id`              | `uuid`        | FK → `productions.id` (cascade)                                                 |
+| `payment_status`             | `text`        | `pending` \| `paid` \| `failed` \| `cancelled` \| `refunded` \| `refund_failed` |
+| `payment_type`               | `text`        | `subscription` (auto-renew) \| `one-time` (single month)                        |
+| `subscription_start`         | `timestamptz` | set by the Stripe webhook                                                       |
+| `subscription_end`           | `timestamptz` | set by the Stripe webhook (matches Stripe `current_period_end`)                 |
+| `current_period_start`       | `timestamptz` | start of the billing window covered by the most recent charge                   |
+| `stripe_session_id`          | `text`        | Stripe Checkout session                                                         |
+| `stripe_subscription_id`     | `text`        | Stripe Subscription id (auto-renew only)                                        |
+| `stripe_customer_id`         | `text`        | Stripe Customer id                                                              |
+| `last_payment_intent_id`     | `text`        | PaymentIntent for the most recent successful charge (what we refund)            |
+| `last_charge_amount_pence`   | `int`         | amount (pence) of the most recent charge                                        |
+| `management_token`           | `text`        | used by the manage-subscription links in email footers                          |
+| `cancellation_reason`        | `text`        | free-form, e.g. `user_cancel`, `production_ended`                               |
+| `created_at` / `updated_at`  | `timestamptz` |                                                                                 |
 
 Unique on `(user_id, production_id)` so re-subscribing updates the row.
+
+**Refund guarantee** is computed from this table + `productions`: if
+`productions.last_standing_tickets_found_at` is NULL or
+`<= subscriptions.current_period_start`, then no tickets have been found
+during the current billing period and the subscription is eligible for a
+full refund of `last_payment_intent_id` on cancellation.
 
 ### `notification_logs`
 
@@ -157,4 +170,5 @@ See `supabase/migrations/20241114001_init.sql` and `20241116003_add_theatres_tab
 | `20241116003_add_theatres_table.sql`           | `theatres` table + FK                                        |
 | `20260423001_remove_scrape_cron.sql`           | unschedules the old pg_cron job                              |
 | `20260423002_extension_scraper.sql`            | `series_code` / `adapter`, `scrape_heartbeats` table         |
-| `20260423003_scraper_settings.sql`             | **NEW** — singleton `scraper_settings` table so the monitor knows the extension's active window |
+| `20260423003_scraper_settings.sql`             | singleton `scraper_settings` table so the monitor knows the extension's active window |
+| `20260423004_billing_state.sql`                | billing state on `subscriptions` (Stripe ids, PaymentIntent, `current_period_start`, `payment_type`, `refunded` / `refund_failed` states) for the refund guarantee |

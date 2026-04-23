@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
-import { getMonitorStatus, adminAuth } from '../lib/api';
+import { getMonitorStatus, adminAuth, sendTestEmail, type TestEmailTemplate } from '../lib/api';
 import type { MonitorStatusResponse, ProductionStatus } from '../lib/types';
 import { AdminLogin } from '../components/AdminLogin';
+
+const EMAIL_TEMPLATES: { id: TestEmailTemplate; label: string }[] = [
+  { id: 'signup-subscription', label: 'Signup (auto-renew)' },
+  { id: 'signup-one-time', label: 'Signup (one-off)' },
+  { id: 'renewal', label: 'Renewal' },
+  { id: 'cancel-refund', label: 'Cancellation + refund' },
+  { id: 'cancel-period-end', label: 'Cancellation at period end' },
+  { id: 'cancel-production-ended', label: 'Cancellation (production ended)' },
+  { id: 'expiry', label: 'Expiry notice' },
+];
 
 const Dot = ({ status }: { status: 'healthy' | 'unhealthy' | 'paused' | boolean }) => {
   // Handle legacy boolean for services
@@ -117,18 +127,25 @@ export const MonitorPage = () => {
 
   const handleLogin = async (username: string, password: string): Promise<boolean> => {
     const result = await adminAuth(username, password);
-    
+
     if (result.success && result.token && result.expiresAt) {
       setAuthenticated(result.token, result.expiresAt);
+      // Stash creds in sessionStorage (cleared on tab close / logout) so the
+      // email-test panel can sign its own basic-auth calls without asking
+      // the admin to type their password again.
+      sessionStorage.setItem('admin_username', username);
+      sessionStorage.setItem('admin_password', password);
       setAuthenticatedState(true);
       return true;
     }
-    
+
     return false;
   };
 
   const handleLogout = () => {
     clearAuthentication();
+    sessionStorage.removeItem('admin_username');
+    sessionStorage.removeItem('admin_password');
     setAuthenticatedState(false);
   };
 
@@ -179,12 +196,57 @@ export const MonitorPage = () => {
     );
   }
 
+  return (
+    <MonitorContent
+      status={status}
+      services={status.services}
+      handleLogout={handleLogout}
+    />
+  );
+};
+
+const MonitorContent = ({
+  status,
+  services,
+  handleLogout,
+}: {
+  status: MonitorStatusResponse;
+  services: MonitorStatusResponse['services'];
+  handleLogout: () => void;
+}) => {
+  const [emailTo, setEmailTo] = useState('');
+  const [sending, setSending] = useState<TestEmailTemplate | null>(null);
+  const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
+
+  const handleSendTestEmail = async (template: TestEmailTemplate) => {
+    const username = sessionStorage.getItem('admin_username');
+    const password = sessionStorage.getItem('admin_password');
+    if (!username || !password) {
+      setEmailFeedback('Session expired — log out and back in to send test emails.');
+      return;
+    }
+    setSending(template);
+    setEmailFeedback(null);
+    const { ok, messageId, error } = await sendTestEmail(
+      template,
+      { username, password },
+      emailTo || undefined,
+    );
+    setSending(null);
+    if (error) {
+      setEmailFeedback(`Failed: ${error}`);
+    } else if (ok) {
+      setEmailFeedback(`Sent ${template} → ${emailTo || 'ALERT_EMAIL'} (id ${messageId ?? 'n/a'})`);
+    } else {
+      setEmailFeedback('Resend reported failure — check server logs.');
+    }
+  };
+
   const renderProduction = (production: ProductionStatus) => {
     const lastCheckedText = production.lastCheckedAt ? formatTimestamp(production.lastCheckedAt) : 'Never';
     const lastFoundText = production.lastStandingTicketsFoundAt
       ? formatTimestamp(production.lastStandingTicketsFoundAt)
       : 'Never';
-    
     return (
       <div key={production.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
         <StatusRow
@@ -200,8 +262,6 @@ export const MonitorPage = () => {
       </div>
     );
   };
-
-  const { services } = status;
 
   return (
     <div>
@@ -257,6 +317,41 @@ export const MonitorPage = () => {
             detail={services.payment.lastPaidAt ? `Last paid ${formatTimestamp(services.payment.lastPaidAt)}` : `No payments in ${services.payment.lookbackDays}d`}
           />
         </div>
+      </SectionCard>
+
+      <SectionCard title="Email templates">
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: '0.85rem' }}>
+          Fire a stubbed copy of each email via Resend. Leave the recipient blank to send to <code>ALERT_EMAIL</code>.
+        </p>
+        <input
+          type="email"
+          placeholder="Override recipient (optional)"
+          value={emailTo}
+          onChange={(e) => setEmailTo(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '0.5rem 0.75rem',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            borderRadius: '0.5rem',
+            color: 'inherit',
+          }}
+        />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          {EMAIL_TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              className="btn btn--ghost btn--small"
+              disabled={sending !== null}
+              onClick={() => handleSendTestEmail(t.id)}
+            >
+              {sending === t.id ? 'Sending…' : t.label}
+            </button>
+          ))}
+        </div>
+        {emailFeedback && (
+          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>{emailFeedback}</p>
+        )}
       </SectionCard>
       </div>
     </div>

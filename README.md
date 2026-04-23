@@ -13,11 +13,12 @@ standing tickets available for today, Yellow Sticker spots it and emails you.
 │  - subscription flow      │──API──▶│     theatres, scrape_heartbeats,│
 │  - Stripe Checkout        │        │     notification_logs)         │
 │  - /monitor dashboard     │        │  - Edge functions:             │
-└───────────────────────────┘        │     report-scrape ◀─── POST    │
+└───────────────────────────┘                                             │     report-scrape ◀─── POST    │
                                      │     status-dashboard           │
                                      │     create-checkout-session    │
                                      │     stripe-webhook             │
                                      │     subscription-management    │
+                                     │     send-test-email            │
                                      │     admin-auth                 │
                                      └──────────────▲─────────────────┘
                                                     │
@@ -64,7 +65,10 @@ interstitials.
 
 - **Frontend**: React 18 + Vite + TypeScript + React Router.
 - **Backend**: Supabase (Postgres, Auth, Edge Functions on Deno).
-- **Payments**: Stripe Checkout (currently shelved, code preserved).
+- **Payments**: Stripe Checkout (£2/month per production, auto-renew or
+  single-month). Test vs live is controlled by the `STRIPE_SECRET_KEY`
+  prefix (`sk_test_*` → test, `sk_live_*` → live); the affected edge
+  functions log their detected mode on boot.
 - **Email**: Resend.
 - **Scraping**: a small Firefox WebExtension using the authenticated
   `buytickets.delfontmackintosh.co.uk` JSON API.
@@ -86,6 +90,7 @@ supabase functions deploy \
   stripe-webhook \
   status-dashboard \
   subscription-management \
+  send-test-email \
   admin-auth \
   report-scrape
 ```
@@ -97,8 +102,18 @@ supabase secrets set \
   RESEND_API_KEY=re_... \
   RESEND_FROM_EMAIL=alerts@yourdomain.com \
   ALERT_EMAIL=you@example.com \
-  SCRAPER_SHARED_SECRET=$(openssl rand -hex 32)
+  SCRAPER_SHARED_SECRET=$(openssl rand -hex 32) \
+  STRIPE_SECRET_KEY=sk_test_... \
+  STRIPE_WEBHOOK_SECRET=whsec_... \
+  PRICE_PER_PRODUCTION_GBP_PENCE=200 \
+  ADMIN_USERNAME=admin \
+  ADMIN_PASSWORD=$(openssl rand -base64 24)
 ```
+
+When promoting to production, replace `sk_test_…` / `whsec_…` with the
+live-mode equivalents from the Stripe Dashboard. Each Stripe-aware edge
+function logs `stripe mode = test|live|unknown` on boot so you can
+confirm.
 
 ### Firefox extension (the important part)
 
@@ -125,6 +140,13 @@ npm run dev
 
 - Scraper runs as a Firefox extension on the Mac mini → no Cloudflare
   datacenter blocks, no TLS fingerprint problem, no captcha solvers.
-- Notifications go to a single `ALERT_EMAIL` (testing mode). The paid
-  per-subscriber fan-out is wired up in the DB but not in the worker yet.
-- Frontend + Stripe payment flow are preserved but not actively in use.
+- Availability alerts go to a single `ALERT_EMAIL` (testing mode). The
+  paid per-subscriber fan-out is wired up in the DB but not in the worker
+  yet.
+- Stripe Checkout is live at £2/month per production with both auto-renew
+  and one-off options. The refund guarantee ("no alerts, no charge") is
+  enforced by `subscription-management` on cancel, and Stripe's
+  `cancel_at` stops renewals 7 days after each production's `end_date`.
+- The `/monitor` dashboard exposes a one-click sender for every
+  lifecycle email template (signup, renewal, cancel, expiry) via the
+  admin-gated `send-test-email` edge function.

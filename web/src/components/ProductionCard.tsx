@@ -98,7 +98,7 @@ export const ProductionCard = ({ production }: Props) => {
         ) : (
           <Link to={`/productions/${production.slug}`} className="btn btn--full">
             Subscribe
-            <span className="btn__price">£4.99/month</span>
+            <span className="btn__price">£2/month</span>
           </Link>
         )}
       </div>

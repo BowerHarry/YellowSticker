@@ -54,7 +54,7 @@ export const ProductionPage = () => {
       <div className="detail-grid">
         <article className="glass-card glass-card--accent">
           <p style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.85rem', margin: 0 }}>
-            £4.99 per month
+            £2 per month
           </p>
           <h1 style={{ margin: '0.35rem 0' }}>{production.name}</h1>
           <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>

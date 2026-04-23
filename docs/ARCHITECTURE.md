@@ -43,10 +43,20 @@
 
 ### Web SPA (`web/`)
 
-React 18 + Vite. Users browse productions, pick one, pay £4.99 (one-off) via
-Stripe Checkout, and then get emails when standing tickets appear. A hidden
-`/monitor` page consumes the `status-dashboard` edge function for a health
-overview (including the extension's most recent heartbeat).
+React 18 + Vite. Users browse productions, pick one, pay £2 for one month
+(or £2/month auto-renew) via Stripe Checkout, and then get emails when
+standing tickets appear. A hidden `/monitor` page consumes the
+`status-dashboard` edge function for a health overview (including the
+extension's most recent heartbeat) and exposes a "send test email" panel
+that fires every lifecycle template via the admin-gated
+`send-test-email` edge function.
+
+Billing details live in `subscriptions` and are driven end-to-end by the
+three Stripe edge functions (`create-checkout-session`, `stripe-webhook`,
+`subscription-management`). Test vs live is controlled by the
+`STRIPE_SECRET_KEY` prefix (`sk_test_…` vs `sk_live_…`); each function
+logs its mode on boot. The per-production price is read from the
+`PRICE_PER_PRODUCTION_GBP_PENCE` secret (default 200, i.e. £2).
 
 **Status**: preserved as-is; not actively being iterated on while we focus on
 the alerting core.
@@ -56,11 +66,22 @@ the alerting core.
 - **Database** — see [`DATABASE.md`](DATABASE.md).
 - **Edge functions** (Deno runtime, deployed via `supabase functions deploy`):
   - `create-checkout-session` — builds a Stripe Checkout Session for a
-    production + user.
-  - `stripe-webhook` — consumes Stripe events, flips
-    `subscriptions.payment_status` to `paid`/`failed`/`cancelled`.
-  - `subscription-management` — manage-subscription links sent in email
-    footers (cancel, change preferences).
+    production + user at `PRICE_PER_PRODUCTION_GBP_PENCE`. For auto-renew
+    plans it also sets `cancel_at = production.end_date + 7 days` on the
+    Stripe Subscription so renewals stop themselves once the show ends.
+  - `stripe-webhook` — consumes Stripe events, keeps
+    `subscriptions.payment_status` / `current_period_start` /
+    `last_payment_intent_id` in sync, fires signup + renewal +
+    cancellation emails, and refunds any renewal that Stripe fires after
+    the production's end date (belt-and-braces for the `cancel_at` above).
+  - `subscription-management` — token-gated manage page (one-click
+    cancel). Enforces the refund guarantee: if no standing tickets have
+    been found since the subscription's current billing period started,
+    the last PaymentIntent is refunded and the subscription is cancelled
+    immediately; otherwise it's cancelled at period end.
+  - `send-test-email` — admin basic-auth gated; renders and sends each of
+    the signup / renewal / cancellation / expiry templates with stub
+    data. Used from the `/monitor` "Email templates" panel.
   - `admin-auth` — basic auth gate for `/monitor`.
   - `status-dashboard` — read-only health snapshot: per-production state,
     extension heartbeat freshness, DB size, Resend usage, Stripe activity.

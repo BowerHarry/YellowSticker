@@ -1,8 +1,28 @@
-import { adminClient } from '../_shared/db.ts';
+// subscription-management: token-gated endpoint used by the web's
+// `/manage?token=…` page. Supports:
+//
+//   GET  ?token=…                 → return subscription summary +
+//                                    whether the "no-tickets-found" refund
+//                                    guarantee currently applies.
+//   POST ?token=… {action:'cancel'} → cancel the subscription. If the
+//                                    refund guarantee applies at that
+//                                    moment, refund the last PaymentIntent
+//                                    and cancel immediately. Otherwise we
+//                                    keep the legacy behaviour: schedule
+//                                    the Stripe subscription to cancel at
+//                                    the end of the current period.
+//
+// The refund guarantee is:
+//   "no standing tickets have been found since your last payment"
+// which, in DB terms, is:
+//   productions.last_standing_tickets_found_at IS NULL
+//   OR productions.last_standing_tickets_found_at <= subscription.current_period_start
 import Stripe from 'npm:stripe';
+import { adminClient } from '../_shared/db.ts';
+import type { ProductionRecord, UserRecord } from '../_shared/types.ts';
+import { cancellationEmail, sendEmail, stripeMode } from '../_shared/emails.ts';
 
 const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-const siteUrl = Deno.env.get('PUBLIC_SITE_URL') ?? 'http://localhost:5173';
 
 if (!stripeKey) {
   throw new Error('STRIPE_SECRET_KEY is required');
@@ -11,6 +31,8 @@ if (!stripeKey) {
 const stripe = new Stripe(stripeKey, {
   apiVersion: '2024-09-30.acacia',
 });
+
+console.log(`subscription-management: stripe mode = ${stripeMode()}`);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,14 +46,94 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 
-// Generate a secure random token
-const generateManagementToken = () => {
-  // Use crypto.randomUUID() for secure token generation
-  return crypto.randomUUID();
+type SubscriptionRow = {
+  id: string;
+  user_id: string;
+  production_id: string;
+  payment_status: string;
+  payment_type: 'subscription' | 'one-time' | null;
+  subscription_start: string | null;
+  subscription_end: string | null;
+  current_period_start: string | null;
+  last_payment_intent_id: string | null;
+  last_charge_amount_pence: number | null;
+  stripe_session_id: string | null;
+  stripe_subscription_id: string | null;
+  management_token: string | null;
+  cancellation_reason: string | null;
+  created_at: string;
+};
+
+// Decide whether the "no tickets found since last payment" guarantee
+// applies *right now* for this subscription. Returns a boolean + the data
+// used to reach the decision so we can show it to the user on the manage
+// page.
+const computeRefundGuarantee = (
+  subscription: SubscriptionRow,
+  production: { last_standing_tickets_found_at: string | null } | null,
+): { applies: boolean; since: string | null; lastFoundAt: string | null } => {
+  const since = subscription.current_period_start ?? subscription.subscription_start;
+  const lastFoundAt = production?.last_standing_tickets_found_at ?? null;
+  if (!since) {
+    // No period anchor means we've never recorded a charge → don't auto
+    // refund, operator can handle it manually.
+    return { applies: false, since: null, lastFoundAt };
+  }
+  if (!lastFoundAt) return { applies: true, since, lastFoundAt };
+  return { applies: new Date(lastFoundAt) <= new Date(since), since, lastFoundAt };
+};
+
+const cancelStripeSide = async (
+  subscription: SubscriptionRow,
+  options: { immediate: boolean },
+) => {
+  let stripeSubscriptionId = subscription.stripe_subscription_id;
+
+  // Legacy rows may not have `stripe_subscription_id` populated; fall back
+  // to reading it off the original Checkout Session.
+  if (!stripeSubscriptionId && subscription.stripe_session_id) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(subscription.stripe_session_id);
+      if (session.mode === 'subscription' && session.subscription) {
+        stripeSubscriptionId =
+          typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
+      }
+    } catch (error) {
+      console.error('Could not resolve stripe_subscription_id from session:', error);
+    }
+  }
+
+  if (!stripeSubscriptionId) return { cancelledImmediately: options.immediate };
+
+  try {
+    if (options.immediate) {
+      await stripe.subscriptions.cancel(stripeSubscriptionId);
+    } else {
+      await stripe.subscriptions.update(stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      });
+    }
+    return { cancelledImmediately: options.immediate };
+  } catch (error) {
+    console.error('Stripe cancellation failed:', error);
+    throw error;
+  }
+};
+
+const issueRefund = async (paymentIntentId: string): Promise<number | null> => {
+  try {
+    const refund = await stripe.refunds.create({
+      payment_intent: paymentIntentId,
+      reason: 'requested_by_customer',
+    });
+    return refund.amount ?? null;
+  } catch (error) {
+    console.error('Refund failed:', error);
+    return null;
+  }
 };
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders, status: 204 });
   }
@@ -44,15 +146,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // GET: View subscription details
     if (req.method === 'GET') {
       const { data: subscription, error } = await adminClient
         .from('subscriptions')
         .select(`
           id,
           payment_status,
+          payment_type,
           subscription_start,
           subscription_end,
+          current_period_start,
+          last_charge_amount_pence,
           created_at,
           user:users (
             id,
@@ -64,7 +168,9 @@ Deno.serve(async (req) => {
             name,
             slug,
             theatre,
-            city
+            city,
+            last_standing_tickets_found_at,
+            end_date
           )
         `)
         .eq('management_token', token)
@@ -74,35 +180,43 @@ Deno.serve(async (req) => {
         console.error('Error fetching subscription:', error);
         return jsonResponse({ error: 'Failed to load subscription' }, 500);
       }
-
       if (!subscription) {
         return jsonResponse({ error: 'Subscription not found' }, 404);
       }
 
-      // Check if subscription is still active
       const now = new Date();
       const endDate = subscription.subscription_end ? new Date(subscription.subscription_end) : null;
-      const isActive = subscription.payment_status === 'paid' && 
-                       endDate && 
-                       endDate > now;
+      const isActive = subscription.payment_status === 'paid' && endDate && endDate > now;
+
+      const guarantee = computeRefundGuarantee(
+        subscription as unknown as SubscriptionRow,
+        (subscription.production as { last_standing_tickets_found_at: string | null } | null) ?? null,
+      );
 
       return jsonResponse({
         subscription: {
           id: subscription.id,
           paymentStatus: subscription.payment_status,
+          paymentType: subscription.payment_type ?? 'subscription',
           subscriptionStart: subscription.subscription_start,
           subscriptionEnd: subscription.subscription_end,
+          currentPeriodStart: subscription.current_period_start,
+          lastChargeAmountPence: subscription.last_charge_amount_pence,
           createdAt: subscription.created_at,
           isActive,
           user: subscription.user,
           production: subscription.production,
+          refundGuarantee: {
+            applies: guarantee.applies,
+            since: guarantee.since,
+            lastTicketsFoundAt: guarantee.lastFoundAt,
+          },
         },
       });
     }
 
-    // POST: Cancel subscription
     if (req.method === 'POST') {
-      const { action } = await req.json() as { action?: string };
+      const { action } = (await req.json()) as { action?: string };
 
       if (action !== 'cancel') {
         return jsonResponse({ error: 'Invalid action' }, 400);
@@ -118,48 +232,135 @@ Deno.serve(async (req) => {
         console.error('Error fetching subscription:', fetchError);
         return jsonResponse({ error: 'Failed to load subscription' }, 500);
       }
-
       if (!subscription) {
         return jsonResponse({ error: 'Subscription not found' }, 404);
       }
 
-      // If it's a Stripe subscription (auto-renew), cancel it in Stripe
-      if (subscription.stripe_session_id) {
-        try {
-          const session = await stripe.checkout.sessions.retrieve(subscription.stripe_session_id);
-          if (session.mode === 'subscription' && session.subscription) {
-            const subscriptionId = typeof session.subscription === 'string' 
-              ? session.subscription 
-              : session.subscription.id;
-            
-            // Cancel the Stripe subscription (at period end to avoid immediate cancellation)
-            await stripe.subscriptions.update(subscriptionId, {
-              cancel_at_period_end: true,
-            });
-            console.log('Stripe subscription set to cancel at period end:', subscriptionId);
-          }
-        } catch (stripeError) {
-          console.error('Error cancelling Stripe subscription:', stripeError);
-          // Continue with database update even if Stripe cancellation fails
+      const sub = subscription as unknown as SubscriptionRow;
+
+      const { data: production } = await adminClient
+        .from('productions')
+        .select('*')
+        .eq('id', sub.production_id)
+        .maybeSingle();
+
+      const guarantee = computeRefundGuarantee(sub, production);
+      const shouldRefund = guarantee.applies && !!sub.last_payment_intent_id;
+
+      // Cancel Stripe side first — either immediately (refund path) or at
+      // period end (normal path for auto-renew subs that received value).
+      const isAutoRenew = sub.payment_type === 'subscription';
+      try {
+        await cancelStripeSide(sub, { immediate: shouldRefund || !isAutoRenew });
+      } catch (error) {
+        console.error('Error cancelling Stripe subscription:', error);
+        // Continue — we still want to reflect user intent in our DB.
+      }
+
+      let refundedAmountPence: number | null = null;
+      let refundStatus: 'refunded' | 'refund_failed' | 'skipped' = 'skipped';
+
+      if (shouldRefund && sub.last_payment_intent_id) {
+        const amount = await issueRefund(sub.last_payment_intent_id);
+        if (amount != null) {
+          refundedAmountPence = amount;
+          refundStatus = 'refunded';
+        } else {
+          refundStatus = 'refund_failed';
         }
       }
 
-      // Update subscription status in database
+      const newPaymentStatus =
+        refundStatus === 'refunded'
+          ? 'refunded'
+          : refundStatus === 'refund_failed'
+            ? 'refund_failed'
+            : 'cancelled';
+
       const { error: updateError } = await adminClient
         .from('subscriptions')
         .update({
-          payment_status: 'cancelled',
+          payment_status: newPaymentStatus,
+          cancellation_reason: 'user_cancel',
         })
-        .eq('id', subscription.id);
+        .eq('id', sub.id);
 
       if (updateError) {
         console.error('Error updating subscription:', updateError);
         return jsonResponse({ error: 'Failed to cancel subscription' }, 500);
       }
 
-      return jsonResponse({ 
-        success: true, 
-        message: 'Subscription cancelled successfully. You will continue to receive alerts until the end of your current billing period.' 
+      // Fire cancellation email (best-effort).
+      try {
+        const { data: user } = await adminClient
+          .from('users')
+          .select('*')
+          .eq('id', sub.user_id)
+          .maybeSingle();
+        if (user?.email && production) {
+          const effective =
+            shouldRefund || !isAutoRenew ? ('immediately' as const) : ('period_end' as const);
+          const { subject, html } = cancellationEmail(
+            {
+              name: (production as ProductionRecord).name,
+              theatre: (production as ProductionRecord).theatre,
+              city: (production as ProductionRecord).city ?? null,
+              slug: (production as ProductionRecord).slug,
+              endDate: (production as ProductionRecord).end_date ?? null,
+            },
+            {
+              paymentType: sub.payment_type ?? 'subscription',
+              currentPeriodStart: sub.current_period_start,
+              currentPeriodEnd: sub.subscription_end,
+              amountPence: sub.last_charge_amount_pence,
+              managementToken: sub.management_token,
+            },
+            {
+              refunded: refundStatus === 'refunded',
+              refundAmountPence: refundedAmountPence,
+              effective,
+              endsAt: sub.subscription_end,
+              reason: 'Cancelled at your request',
+            },
+          );
+          const messageId = await sendEmail({ to: (user as UserRecord).email ?? '', subject, html });
+          if (messageId) {
+            await adminClient.from('notification_logs').insert({
+              user_id: sub.user_id,
+              production_id: sub.production_id,
+              type: 'email',
+              channel_message_id: messageId,
+              payload: {
+                reason: 'subscription_cancelled',
+                refunded: refundStatus === 'refunded',
+                refundAmountPence: refundedAmountPence,
+              },
+            });
+          }
+        }
+      } catch (emailError) {
+        console.error('Failed to send cancellation email:', emailError);
+      }
+
+      const message = (() => {
+        if (refundStatus === 'refunded') {
+          return `Subscription cancelled and your most recent payment has been refunded in full (${(refundedAmountPence ?? 0) / 100} GBP). It may take 5–10 business days to land on your card.`;
+        }
+        if (refundStatus === 'refund_failed') {
+          return 'Subscription cancelled. We tried to refund your last payment per our guarantee but the refund failed — we\'ll follow up manually shortly.';
+        }
+        if (isAutoRenew) {
+          return 'Subscription cancelled. You\'ll continue to receive alerts until the end of the current billing period.';
+        }
+        return 'Subscription cancelled.';
+      })();
+
+      return jsonResponse({
+        success: true,
+        message,
+        refunded: refundStatus === 'refunded',
+        refundAmountPence: refundedAmountPence,
+        paymentStatus: newPaymentStatus,
       });
     }
 
@@ -169,4 +370,3 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Unexpected server error' }, 500);
   }
 });
-

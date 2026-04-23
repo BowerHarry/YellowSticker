@@ -1,9 +1,18 @@
+// create-checkout-session: builds a Stripe Checkout Session for a single
+// production's alerts, for either a recurring subscription or a one-off
+// single-month payment. The Checkout URL is returned; Stripe posts back to
+// `stripe-webhook` when payment completes.
+//
+// The `STRIPE_SECRET_KEY` env var decides whether we're in Stripe test or
+// live mode (`sk_test_*` vs `sk_live_*`). We log the detected mode on
+// startup so operators can tell at a glance which side of the wall a given
+// edge function deployment is talking to.
 import Stripe from 'npm:stripe';
 import { adminClient } from '../_shared/db.ts';
 import type { SubscriptionPayload } from '../_shared/types.ts';
+import { priceGbpPence, stripeMode, siteUrl } from '../_shared/emails.ts';
 
 const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-const siteUrl = Deno.env.get('PUBLIC_SITE_URL') ?? 'http://localhost:5173';
 
 if (!stripeKey) {
   throw new Error('STRIPE_SECRET_KEY is required');
@@ -12,6 +21,8 @@ if (!stripeKey) {
 const stripe = new Stripe(stripeKey, {
   apiVersion: '2024-09-30.acacia',
 });
+
+console.log(`create-checkout-session: stripe mode = ${stripeMode()}`);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -60,8 +71,20 @@ const ensureUser = async (payload: SubscriptionPayload) => {
   return data;
 };
 
+// Stripe's subscription model lets us schedule an automatic cancellation
+// at a specific future timestamp via `cancel_at`. Using this we implement
+// the guarantee: auto-renew subscriptions keep alerting the user until
+// 7 days after the production's final performance, then stop themselves.
+const cancelAtFromEndDate = (endDate: string | null | undefined): number | null => {
+  if (!endDate) return null;
+  const d = new Date(endDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const cancelAt = new Date(d);
+  cancelAt.setUTCDate(cancelAt.getUTCDate() + 7);
+  return Math.floor(cancelAt.getTime() / 1000);
+};
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders, status: 204 });
   }
@@ -72,7 +95,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Missing fields' }, 400);
     }
 
-    const paymentType = payload.paymentType || 'subscription'; // Default to subscription
+    const paymentType = payload.paymentType || 'subscription';
 
     const { data: production, error: productionError } = await adminClient
       .from('productions')
@@ -82,6 +105,19 @@ Deno.serve(async (req) => {
 
     if (productionError || !production) {
       return jsonResponse({ error: 'Production not found' }, 404);
+    }
+
+    // Belt-and-braces: if the production has already ended, refuse to take
+    // a new payment — the user's money would just be refunded immediately
+    // by the webhook, which makes for a worse UX than blocking upfront.
+    if (production.end_date) {
+      const endMs = new Date(production.end_date).getTime();
+      if (Number.isFinite(endMs) && endMs < Date.now()) {
+        return jsonResponse(
+          { error: 'This production has already finished its run — no new subscriptions can be taken.' },
+          410,
+        );
+      }
     }
 
     const user = await ensureUser(payload);
@@ -101,59 +137,61 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create checkout session based on payment type
+    const unitAmount = priceGbpPence();
+
     const baseMetadata = {
       user_id: user.id,
       production_id: production.id,
       payment_type: paymentType,
     };
 
+    const productDescription =
+      paymentType === 'subscription'
+        ? 'Yellow Sticker monthly standing-ticket alerts (auto-renew, cancel any time)'
+        : 'Yellow Sticker 1-month standing-ticket alerts';
+
+    const cancelAt = paymentType === 'subscription' ? cancelAtFromEndDate(production.end_date) : null;
+
+    const commonLineItems = [
+      {
+        quantity: 1,
+        price_data: {
+          currency: 'gbp',
+          unit_amount: unitAmount,
+          ...(paymentType === 'subscription' ? { recurring: { interval: 'month' as const } } : {}),
+          product_data: {
+            name: `${production.name} alerts`,
+            description: productDescription,
+          },
+        },
+      },
+    ];
+
     const session = paymentType === 'subscription'
       ? await stripe.checkout.sessions.create({
           mode: 'subscription',
           currency: 'gbp',
+          customer_email: user.email ?? undefined,
           metadata: baseMetadata,
           subscription_data: {
             metadata: baseMetadata,
+            ...(cancelAt ? { cancel_at: cancelAt } : {}),
           },
-          line_items: [
-            {
-              quantity: 1,
-              price_data: {
-                currency: 'gbp',
-                unit_amount: 499,
-                recurring: {
-                  interval: 'month',
-                },
-                product_data: {
-                  name: `${production.name} alerts`,
-                  description: 'Yellow Sticker monthly standing ticket notifications (auto-renew)',
-                },
-              },
-            },
-          ],
-          success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${siteUrl}/productions/${payload.productionSlug}?cancelled=true`,
+          line_items: commonLineItems,
+          success_url: `${siteUrl()}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${siteUrl()}/productions/${payload.productionSlug}?cancelled=true`,
         })
       : await stripe.checkout.sessions.create({
-          mode: 'payment', // One-time payment
+          mode: 'payment',
           currency: 'gbp',
+          customer_email: user.email ?? undefined,
           metadata: baseMetadata,
-          line_items: [
-            {
-              quantity: 1,
-              price_data: {
-                currency: 'gbp',
-                unit_amount: 499,
-                product_data: {
-                  name: `${production.name} alerts`,
-                  description: 'Yellow Sticker 1-month standing ticket notifications',
-                },
-              },
-            },
-          ],
-          success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${siteUrl}/productions/${payload.productionSlug}?cancelled=true`,
+          payment_intent_data: {
+            metadata: baseMetadata,
+          },
+          line_items: commonLineItems,
+          success_url: `${siteUrl()}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${siteUrl()}/productions/${payload.productionSlug}?cancelled=true`,
         });
 
     if (!session.url) {
@@ -167,6 +205,11 @@ Deno.serve(async (req) => {
           payment_status: 'pending',
           subscription_start: null,
           subscription_end: null,
+          current_period_start: null,
+          last_payment_intent_id: null,
+          last_charge_amount_pence: null,
+          payment_type: paymentType,
+          cancellation_reason: null,
           stripe_session_id: session.id,
         })
         .eq('id', existingSubscription.id);
@@ -175,6 +218,7 @@ Deno.serve(async (req) => {
         user_id: user.id,
         production_id: production.id,
         payment_status: 'pending',
+        payment_type: paymentType,
         stripe_session_id: session.id,
       });
     }
@@ -185,4 +229,3 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Unexpected server error' }, 500);
   }
 });
-

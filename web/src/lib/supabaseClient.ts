@@ -36,15 +36,14 @@ export const callSupabaseFunction = async <T>(
     return { error: 'Supabase functions URL is not configured.' };
   }
 
+  // Caller-provided headers win, so callers can override the default anon
+  // Authorization (e.g. basic-auth for admin-only functions).
+  const incomingHeaders = (init?.headers as Record<string, string> | undefined) ?? {};
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(init?.headers as Record<string, string> | undefined),
+    ...(supabaseAnonKey ? { Authorization: `Bearer ${supabaseAnonKey}` } : {}),
+    ...incomingHeaders,
   };
-
-  // Add Authorization header if anon key is available
-  if (supabaseAnonKey) {
-    headers['Authorization'] = `Bearer ${supabaseAnonKey}`;
-  }
 
   // Build URL with query parameters
   let url = `${functionsBase}/${endpoint}`;
