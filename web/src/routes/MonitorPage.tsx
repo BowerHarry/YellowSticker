@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import {
   adminAuth,
   adminPreviewCancel,
+  adminTestFixture,
   getMonitorStatus,
   sendTestEmail,
   type AdminPreviewCancelResponse,
   type AdminPreviewCancelSelector,
   type TestEmailTemplate,
+  type TestFixtureAction,
+  type TestFixtureResponse,
 } from '../lib/api';
 import type { MonitorStatusResponse, ProductionStatus } from '../lib/types';
 import { AdminLogin } from '../components/AdminLogin';
@@ -237,6 +240,29 @@ const MonitorContent = ({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewResult, setPreviewResult] = useState<AdminPreviewCancelResponse | null>(null);
+
+  // Test fixture panel state.
+  const [fixtureBusy, setFixtureBusy] = useState<string | null>(null);
+  const [fixtureError, setFixtureError] = useState<string | null>(null);
+  const [fixtureResult, setFixtureResult] = useState<TestFixtureResponse | null>(null);
+
+  const runFixtureAction = async (payload: TestFixtureAction) => {
+    const username = sessionStorage.getItem('admin_username');
+    const password = sessionStorage.getItem('admin_password');
+    if (!username || !password) {
+      setFixtureError('Session expired — log out and back in.');
+      return;
+    }
+    setFixtureBusy(payload.action);
+    setFixtureError(null);
+    const { data, error } = await adminTestFixture(payload, { username, password });
+    setFixtureBusy(null);
+    if (error) {
+      setFixtureError(error);
+      return;
+    }
+    setFixtureResult(data ?? null);
+  };
 
   const handlePreviewCancel = async () => {
     const username = sessionStorage.getItem('admin_username');
@@ -490,6 +516,82 @@ const MonitorContent = ({
         )}
 
         {previewResult && <PreviewCancelResult result={previewResult} />}
+      </SectionCard>
+
+      <SectionCard title="Test fixture">
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: '0.85rem' }}>
+          Seeds a hidden <code>test-fixture</code> production you can subscribe to at{' '}
+          <code>/productions/test-fixture</code>. Use the buttons below to drive the end-to-end
+          flow without touching real shows. The fixture is filtered out of the public listings.
+        </p>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn--primary btn--small"
+            disabled={fixtureBusy !== null}
+            onClick={() => runFixtureAction({ action: 'reset' })}
+          >
+            {fixtureBusy === 'reset' ? 'Resetting…' : 'Reset fixture'}
+          </button>
+          <button
+            className="btn btn--ghost btn--small"
+            disabled={fixtureBusy !== null}
+            onClick={() =>
+              runFixtureAction({
+                action: 'simulate-available',
+                standCount: 3,
+                performanceCount: 2,
+              })
+            }
+          >
+            {fixtureBusy === 'simulate-available' ? 'Firing…' : 'Simulate availability'}
+          </button>
+          <button
+            className="btn btn--ghost btn--small"
+            disabled={fixtureBusy !== null}
+            onClick={() => runFixtureAction({ action: 'simulate-tickets-found' })}
+          >
+            {fixtureBusy === 'simulate-tickets-found'
+              ? 'Marking…'
+              : 'Mark tickets found (disables refund)'}
+          </button>
+          <button
+            className="btn btn--ghost btn--small"
+            disabled={fixtureBusy !== null}
+            onClick={() => runFixtureAction({ action: 'clear-alert-state' })}
+          >
+            {fixtureBusy === 'clear-alert-state' ? 'Clearing…' : 'Clear alert state'}
+          </button>
+          <button
+            className="btn btn--ghost btn--small"
+            disabled={fixtureBusy !== null}
+            onClick={() => {
+              if (window.confirm('Delete the test fixture and ALL its subscriptions?')) {
+                runFixtureAction({ action: 'delete' });
+              }
+            }}
+          >
+            {fixtureBusy === 'delete' ? 'Deleting…' : 'Delete fixture'}
+          </button>
+        </div>
+        {fixtureError && (
+          <p style={{ margin: 0, fontSize: '0.85rem', color: '#f87171' }}>{fixtureError}</p>
+        )}
+        {fixtureResult && (
+          <div
+            style={{
+              padding: '0.75rem',
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '0.5rem',
+              fontSize: '0.8rem',
+              fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
+            {JSON.stringify(fixtureResult, null, 2)}
+          </div>
+        )}
       </SectionCard>
       </div>
     </div>

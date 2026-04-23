@@ -111,6 +111,15 @@ the alerting core.
     `subscription-management` cancel would produce, without actually
     doing it. Shares its guarantee logic with `subscription-management`
     so the admin panel and manage page always agree.
+  - `admin-test-fixture` — admin basic-auth gated. Maintains a hidden
+    `test-fixture` production (adapter=`none`, filtered out of public
+    listings by `slug LIKE 'test-%'`) and exposes five actions —
+    `reset`, `simulate-available`, `simulate-tickets-found`,
+    `clear-alert-state`, `delete` — so the full signup → pay → alert →
+    cancel flow can be exercised end-to-end without touching real
+    shows. The `simulate-available` action calls `report-scrape`
+    internally with the shared secret so the real fan-out path runs.
+    See [`TESTING.md`](TESTING.md).
 - **Cron** — previously drove a `scrape-tickets` edge function. No longer
   used; migration `20260423001_remove_scrape_cron.sql` unschedules it.
 

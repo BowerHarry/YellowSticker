@@ -20,6 +20,7 @@ standing tickets available for today, Yellow Sticker spots it and emails you.
                                      │     subscription-management    │
                                      │     send-test-email            │
                                      │     admin-preview-cancel       │
+                                     │     admin-test-fixture         │
                                      │     admin-auth                 │
                                      └──────────────▲─────────────────┘
                                                     │
@@ -93,6 +94,7 @@ supabase functions deploy \
   subscription-management \
   send-test-email \
   admin-preview-cancel \
+  admin-test-fixture \
   admin-auth \
   report-scrape
 ```
@@ -163,4 +165,9 @@ npm run dev
     renewal, cancel, expiry) via `send-test-email`;
   - an admin **Preview cancel** panel that shows, for any subscription,
     the exact refund + Stripe + email effect a cancel would produce —
-    read-only, powered by `admin-preview-cancel`.
+    read-only, powered by `admin-preview-cancel`;
+  - a **Test fixture** panel that drives a hidden `test-fixture`
+    production end-to-end (reset, simulate availability, mark tickets
+    found, clear alert state, delete) so you can exercise the full
+    signup → alert → cancel flow without touching real shows. See
+    [`docs/TESTING.md`](docs/TESTING.md).

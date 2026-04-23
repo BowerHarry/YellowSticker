@@ -10,11 +10,15 @@ export const getProductions = async (): Promise<Production[]> => {
 
   const now = new Date().toISOString();
   // Query: start_date <= now AND (end_date IS NULL OR end_date >= now)
+  // `test-%` slugs are reserved for operator test fixtures (see
+  // `admin-test-fixture` edge function) and must stay hidden from
+  // public listings so real visitors never see or subscribe to them.
   const { data, error } = await supabase
     .from('productions')
     .select('*')
     .lte('start_date', now) // start_date <= now
     .or(`end_date.is.null,end_date.gte.${now}`) // end_date is null OR end_date >= now
+    .not('slug', 'like', 'test-%')
     .order('name', { ascending: true });
 
   if (error || !data) {
@@ -37,6 +41,7 @@ export const getComingSoonProductions = async (): Promise<Production[]> => {
     .from('productions')
     .select('*')
     .gt('start_date', now) // start_date > now
+    .not('slug', 'like', 'test-%')
     .order('start_date', { ascending: true });
 
   if (error || !data) {
@@ -274,6 +279,53 @@ export const adminPreviewCancel = async (
       method: 'POST',
       headers: { 'X-Admin-Authorization': `Basic ${basic}` },
       body: JSON.stringify(selector),
+    },
+  );
+  if (error) return { error };
+  return { data: data ?? undefined };
+};
+
+export type TestFixtureAction =
+  | { action: 'reset' }
+  | { action: 'simulate-available'; standCount?: number; performanceCount?: number }
+  | { action: 'simulate-tickets-found' }
+  | { action: 'clear-alert-state' }
+  | { action: 'delete' };
+
+export interface TestFixtureResponse {
+  ok: boolean;
+  action: string;
+  fixture?: {
+    id: string;
+    slug: string;
+    name: string;
+    theatre: string;
+    end_date: string | null;
+    last_seen_status: string | null;
+    last_checked_at: string | null;
+    last_standing_tickets_found_at: string | null;
+    last_availability_transition_at: string | null;
+    scrape_disabled_reason: string | null;
+    adapter: string | null;
+  } | null;
+  markedAt?: string;
+  deleted?: boolean;
+  reportScrape?: unknown;
+  status?: number;
+}
+
+// Admin-only helper for test-fixture lifecycle. Hits admin-test-fixture.
+export const adminTestFixture = async (
+  payload: TestFixtureAction,
+  credentials: { username: string; password: string },
+): Promise<{ data?: TestFixtureResponse; error?: string }> => {
+  const basic = btoa(`${credentials.username}:${credentials.password}`);
+  const { data, error } = await callSupabaseFunction<TestFixtureResponse>(
+    'admin-test-fixture',
+    {
+      method: 'POST',
+      headers: { 'X-Admin-Authorization': `Basic ${basic}` },
+      body: JSON.stringify(payload),
     },
   );
   if (error) return { error };
