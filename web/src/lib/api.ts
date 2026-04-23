@@ -130,6 +130,7 @@ export const adminAuth = async (
 export interface SubscriptionData {
   id: string;
   paymentStatus: string;
+  cancellationReason?: string | null;
   subscriptionStart: string | null;
   subscriptionEnd: string | null;
   createdAt: string;
@@ -155,6 +156,7 @@ export const getSubscriptionByToken = async (
     subscription: {
       id: string;
       paymentStatus: string;
+      cancellationReason?: string | null;
       subscriptionStart: string | null;
       subscriptionEnd: string | null;
       createdAt: string;

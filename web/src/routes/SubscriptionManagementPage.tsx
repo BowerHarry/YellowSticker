@@ -5,6 +5,7 @@ import { getSubscriptionByToken, cancelSubscription } from '../lib/api';
 interface SubscriptionData {
   id: string;
   paymentStatus: string;
+  cancellationReason?: string | null;
   paymentType?: 'subscription' | 'one-time';
   subscriptionStart: string | null;
   subscriptionEnd: string | null;
@@ -134,6 +135,8 @@ export const SubscriptionManagementPage = () => {
     return null;
   }
 
+  const pendingCancellation = subscription.cancellationReason === 'user_cancel_period_end';
+
   return (
     <div className="grid" style={{ gap: '2rem', maxWidth: '640px', margin: '0 auto' }}>
       <Link to="/" className="back-link">
@@ -155,19 +158,37 @@ export const SubscriptionManagementPage = () => {
             <strong style={{ color: 'var(--text-muted)', fontSize: '0.85rem', display: 'block', marginBottom: '0.25rem' }}>
               Status
             </strong>
-            <span style={{ 
-              display: 'inline-block',
-              padding: '0.25rem 0.75rem',
-              borderRadius: '999px',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              background: subscription.isActive 
-                ? 'rgba(76, 175, 80, 0.2)' 
-                : 'rgba(255, 152, 0, 0.2)',
-              color: subscription.isActive ? '#4caf50' : '#ff9800',
-            }}>
-              {subscription.isActive ? 'Active' : 'Inactive'}
-            </span>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ 
+                display: 'inline-block',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '999px',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                background: subscription.isActive 
+                  ? 'rgba(76, 175, 80, 0.2)' 
+                  : 'rgba(255, 152, 0, 0.2)',
+                color: subscription.isActive ? '#4caf50' : '#ff9800',
+              }}>
+                {subscription.isActive ? 'Active' : 'Inactive'}
+              </span>
+              {pendingCancellation && subscription.isActive && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '999px',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    background: 'rgba(255, 211, 0, 0.2)',
+                    color: '#ffd300',
+                    border: '1px solid rgba(255, 211, 0, 0.35)',
+                  }}
+                >
+                  Pending cancellation
+                </span>
+              )}
+            </div>
           </div>
 
           <div>
@@ -202,7 +223,17 @@ export const SubscriptionManagementPage = () => {
         </div>
       </div>
 
-      {subscription.isActive && !cancelSuccess && (
+      {pendingCancellation && subscription.isActive && !cancelSuccess && (
+        <div className="glass-card">
+          <h2 style={{ marginTop: 0 }}>Cancellation scheduled</h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: 0 }}>
+            Your subscription is set to end on <strong>{formatDate(subscription.subscriptionEnd)}</strong>.
+            You&apos;ll keep receiving alerts until then, and no further renewals will be taken.
+          </p>
+        </div>
+      )}
+
+      {subscription.isActive && !cancelSuccess && !pendingCancellation && (
         <div className="glass-card">
           <h2 style={{ marginTop: 0 }}>Cancel Subscription</h2>
           {subscription.refundGuarantee?.applies ? (
