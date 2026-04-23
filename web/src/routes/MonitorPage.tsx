@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getMonitorStatus, triggerScrape, adminAuth } from '../lib/api';
+import { getMonitorStatus, adminAuth } from '../lib/api';
 import type { MonitorStatusResponse, ProductionStatus } from '../lib/types';
 import { AdminLogin } from '../components/AdminLogin';
 
@@ -109,9 +109,6 @@ export const MonitorPage = () => {
   const [status, setStatus] = useState<MonitorStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [triggering, setTriggering] = useState(false);
-  const [triggerError, setTriggerError] = useState<string | null>(null);
-  const [triggerSuccess, setTriggerSuccess] = useState(false);
 
   const handleLogin = async (username: string, password: string): Promise<boolean> => {
     const result = await adminAuth(username, password);
@@ -146,25 +143,6 @@ export const MonitorPage = () => {
       loadStatus();
     }
   }, [authenticated]);
-
-  const handleTriggerScrape = async () => {
-    setTriggering(true);
-    setTriggerError(null);
-    setTriggerSuccess(false);
-
-    const result = await triggerScrape();
-    if (result.error) {
-      setTriggerError(result.error);
-    } else {
-      setTriggerSuccess(true);
-      // Reload status after a short delay to see updated timestamps
-      setTimeout(() => {
-        loadStatus();
-        setTriggerSuccess(false);
-      }, 2000);
-    }
-    setTriggering(false);
-  };
 
   if (!authenticated) {
     return <AdminLogin onLogin={handleLogin} />;
@@ -240,9 +218,9 @@ export const MonitorPage = () => {
             label="Web scraper"
             healthy={services.scraper.healthy}
             detail={
-              services.scraper.monthlyUsed !== undefined && services.scraper.monthlyLimit !== undefined
-                ? `${services.scraper.used}/${services.scraper.limit} today · ${services.scraper.monthlyUsed}/${services.scraper.monthlyLimit} this month`
-                : `${services.scraper.used}/${services.scraper.limit} req today`
+              services.scraper.lastCheckedAt
+                ? `Last run ${formatTimestamp(services.scraper.lastCheckedAt)}`
+                : 'No successful runs yet'
             }
           />
           <StatusRow
@@ -260,30 +238,6 @@ export const MonitorPage = () => {
             healthy={services.payment.healthy}
             detail={services.payment.lastPaidAt ? `Last paid ${formatTimestamp(services.payment.lastPaidAt)}` : `No payments in ${services.payment.lookbackDays}d`}
           />
-        </div>
-        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #222' }}>
-          <button
-            onClick={handleTriggerScrape}
-            disabled={triggering}
-            style={{
-              padding: '0.75rem 1.5rem',
-              backgroundColor: triggering ? '#666' : 'var(--yellow)',
-              color: '#000',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontWeight: '600',
-              cursor: triggering ? 'not-allowed' : 'pointer',
-              fontSize: '0.9rem',
-              width: '100%',
-            }}
-          >
-            {triggering ? 'Triggering...' : triggerSuccess ? '✓ Triggered successfully' : 'Run Scraper Now'}
-          </button>
-          {triggerError && (
-            <p style={{ margin: '0.5rem 0 0 0', color: '#f87171', fontSize: '0.85rem' }}>
-              Error: {triggerError}
-            </p>
-          )}
         </div>
       </SectionCard>
       </div>

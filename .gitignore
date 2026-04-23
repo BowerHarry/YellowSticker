@@ -7,33 +7,29 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Dependency directories
-node_modules
-/web/node_modules
+node_modules/
 
 # Build outputs
-dist
-/web/dist
+dist/
+web/dist/
+web/tsconfig.tsbuildinfo
 
-# Editor directories and files
+# Compiled TypeScript output that should never be committed alongside sources
+web/src/**/*.js
+
+# Editor / OS cruft
 .idea
 .vscode
 *.swp
+.DS_Store
 
 # Local env files
 .env
 .env.*
-/web/.env
-/web/.env.*
+!env.sample
+!*/env.sample
+!*/env.example
 
 # Supabase generated artifacts
-supabase/.temp
-supabase/.branches
-
-
-/docs
-/docs
-/docs
-*.md
-docs/CHEAP_SCRAPING_OPTIONS.md
-docs/env.sample
-/supabase/migrations
+supabase/.temp/
+supabase/.branches/

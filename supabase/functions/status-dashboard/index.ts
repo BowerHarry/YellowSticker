@@ -39,7 +39,6 @@ Deno.serve(async (req) => {
 
   try {
     const now = new Date();
-    const isoToday = now.toISOString().slice(0, 10);
     const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
     const dayStartIso = startOfDayIso(now);
     const monthStartIso = startOfMonthIso(now);
@@ -111,43 +110,18 @@ Deno.serve(async (req) => {
       console.error('Failed to load productions', error);
     }
 
-    // Scraper usage (ScrapingBee)
-    const scraperDailyLimit = getNumberEnv('SCRAPINGBEE_DAILY_LIMIT', 1000);
-    const scraperMonthlyLimit = getNumberEnv('SCRAPINGBEE_MONTHLY_LIMIT', 10000);
-    let scraperDailyRequests = 0;
-    let scraperMonthlyRequests = 0;
-    try {
-      // Get today's usage
-      const { data: dailyRow, error: dailyError } = await adminClient
-        .from('scraper_usage_daily')
-        .select('requests')
-        .eq('usage_date', isoToday)
-        .maybeSingle();
-      if (dailyError) throw dailyError;
-      scraperDailyRequests = dailyRow?.requests ?? 0;
-
-      // Sum all daily usage for current month
-      const { data: monthlyRows, error: monthlyError } = await adminClient
-        .from('scraper_usage_daily')
-        .select('requests')
-        .gte('usage_date', monthStartIso.slice(0, 10));
-      if (monthlyError) throw monthlyError;
-      scraperMonthlyRequests = (monthlyRows ?? []).reduce((sum, row) => sum + (row.requests ?? 0), 0);
-    } catch (error) {
-      console.error('Failed to load scraper usage', error);
-    }
-
-    // Check if any productions have failed (unknown status) - indicates scraper issues
+    // Scraper health: we no longer track per-request quota (the worker is
+    // self-hosted). Instead we flag the scraper unhealthy if any active
+    // production has a stale `last_checked_at` or a last_seen_status of
+    // 'unknown' (which indicates the last run failed for that production).
     const hasFailedProductions = productionStatuses.some((p) => p.lastSeenStatus === 'unknown');
-    
-    // Scraper is unhealthy if:
-    // - Daily limit reached
-    // - Monthly limit reached
-    // - Any production has failed (unknown status)
-    const scraperHealthy = 
-      scraperDailyRequests < scraperDailyLimit &&
-      scraperMonthlyRequests < scraperMonthlyLimit &&
-      !hasFailedProductions;
+    const hasStaleProductions = productionStatuses.some((p) => p.status === 'unhealthy');
+    const scraperHealthy = !hasFailedProductions && !hasStaleProductions;
+    const lastCheckedAt = productionStatuses.reduce<string | null>((latest, p) => {
+      if (!p.lastCheckedAt) return latest;
+      if (!latest || p.lastCheckedAt > latest) return p.lastCheckedAt;
+      return latest;
+    }, null);
 
     // Database limits
     const monthlyUserLimit = getNumberEnv('SUPABASE_MONTHLY_USER_LIMIT', 50000);
@@ -230,10 +204,8 @@ Deno.serve(async (req) => {
       services: {
         scraper: {
           healthy: scraperHealthy,
-          used: scraperDailyRequests,
-          limit: scraperDailyLimit,
-          monthlyUsed: scraperMonthlyRequests,
-          monthlyLimit: scraperMonthlyLimit,
+          lastCheckedAt,
+          hasFailedProductions,
         },
         database: {
           healthy: databaseHealthy,

@@ -42,10 +42,8 @@ export interface ServiceHealth {
 }
 
 export interface ScraperHealth extends ServiceHealth {
-  used: number;
-  limit: number;
-  monthlyUsed?: number;
-  monthlyLimit?: number;
+  lastCheckedAt: string | null;
+  hasFailedProductions: boolean;
 }
 
 export interface DatabaseHealth extends ServiceHealth {

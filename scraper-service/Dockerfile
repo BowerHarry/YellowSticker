@@ -1,10 +1,11 @@
-FROM node:18-slim
+# Yellow Sticker scraper worker
+# Targets amd64 (Intel Mac mini running Docker Desktop).
+FROM node:20-slim
 
-# Install dependencies for Puppeteer
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
+# Chromium runtime deps for Puppeteer headless.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -16,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     libexpat1 \
     libfontconfig1 \
     libgbm1 \
-    libgcc1 \
+    libgcc-s1 \
     libglib2.0-0 \
     libgtk-3-0 \
     libnspr4 \
@@ -37,44 +38,37 @@ RUN apt-get update && apt-get install -y \
     libxrender1 \
     libxss1 \
     libxtst6 \
-    lsb-release \
-    xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
+    tzdata \
+    wget \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy package files
+# Install deps first so subsequent source-only changes don't bust this layer.
 COPY package.json ./
+RUN npm install --omit=dev && npm cache clean --force
 
-# Create non-root user for security (before installing dependencies)
-RUN if id -u scraper >/dev/null 2>&1; then \
-      echo "User scraper already exists"; \
-    else \
-      useradd -m scraper; \
-    fi
+# Create a non-root user and move the Puppeteer cache into a predictable location
+# so the Chromium install is owned by the same user that runs the process.
+RUN useradd --create-home --shell /bin/bash scraper \
+  && mkdir -p /home/scraper/.cache \
+  && chown -R scraper:scraper /app /home/scraper
 
-# Install dependencies (use npm install since we don't have package-lock.json)
-# For production, omit dev dependencies
-# Puppeteer will download Chrome automatically
-RUN npm install --omit=dev
-
-# Switch to scraper user to install Chrome in their home directory
 USER scraper
-
-# Install Chrome via Puppeteer (as scraper user, so it goes to /home/scraper/.cache/puppeteer)
+# Download the Chromium build that matches the installed Puppeteer version.
 RUN npx puppeteer browsers install chrome
 
-# Switch back to root to copy files and set permissions
 USER root
-
-# Copy application code and set permissions
-COPY server.js ./
-RUN chown -R scraper:scraper /app
-
-# Switch back to scraper user for runtime
+COPY --chown=scraper:scraper src ./src
 USER scraper
+
+ENV NODE_ENV=production \
+    TZ=Europe/London \
+    HEALTH_PORT=3000
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+HEALTHCHECK --interval=1m --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -fsS http://localhost:3000/health || exit 1
 
+CMD ["node", "src/index.js"]

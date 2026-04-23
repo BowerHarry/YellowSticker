@@ -1,100 +1,99 @@
-## Yellow Sticker
+# Yellow Sticker
 
-Discount theatre ticket alerts for London’s biggest shows. React SPA plus Supabase edge functions handle sign-ups, payments, scraping, and notifications.
+Alerts for London theatre standing tickets. When a participating show drops standing tickets for today, Yellow Sticker notices and emails you.
 
-### Stack
-- React 18 + Vite (TypeScript, React Router)
-- Supabase (Auth, Postgres, Edge Functions, cron)
-- Stripe Checkout (one-off £4.99)
-- Resend email notifications (SMS coming soon)
-- Playwright-style scraping placeholders using rotating user agents
+## Architecture at a glance
 
-### Project structure
-- `web/` — frontend SPA
-- `supabase/` — database schema, seed data, edge functions
-- `docs/` — environment samples & ops notes
+```
+┌───────────────────────────┐        ┌────────────────────────────────┐
+│  React SPA (web/)         │        │  Supabase                      │
+│                           │──auth──▶  - Postgres (productions,       │
+│  - marketing / FAQ pages  │        │     subscriptions, users,      │
+│  - subscription flow      │──API──▶│     theatres, notification_logs│
+│  - Stripe Checkout        │        │  - Edge functions:             │
+│  - /monitor dashboard     │        │     create-checkout-session    │
+└───────────────────────────┘        │     stripe-webhook             │
+                                     │     subscription-management    │
+                                     │     admin-auth                 │
+                                     │     status-dashboard           │
+                                     └──────────────▲─────────────────┘
+                                                    │
+                                                    │ writes status,
+                                                    │ reads productions
+                                                    │
+                                 ┌──────────────────┴────────────────┐
+                                 │  scraper-service/  (Docker)        │
+                                 │  Runs on a home machine            │
+                                 │  (e.g. Mac mini over home Wi-Fi).  │
+                                 │                                    │
+                                 │  1. cron (every 15m, 8-18 UK)      │
+                                 │  2. load active productions        │
+                                 │  3. Puppeteer + stealth            │
+                                 │  4. update DB row                  │
+                                 │  5. Resend email to ALERT_EMAIL    │
+                                 │     on state transition            │
+                                 └───────────┬────────────────────────┘
+                                             │
+                                             ▼
+                                         Theatre
+                                       websites (hit
+                                       from your home IP)
+```
 
-### Quick Start
+The scraper **only needs outbound internet** — nothing calls into it from the public internet. This is what fixes the Cloudflare / datacenter-IP problem we fought in previous rounds.
 
-**📖 For detailed setup instructions, see [docs/SETUP.md](docs/SETUP.md)**
+## Repo layout
 
-This guide covers:
-- Environment variable setup
-- Supabase database and functions deployment
-- Stripe webhook configuration
-- Scheduled scraping setup
-- Testing the complete flow
+- [`web/`](web/) — React 18 + Vite + TypeScript SPA. Subscription flow + `/monitor` dashboard.
+- [`supabase/`](supabase/) — database schema (`migrations/`), seed data, and edge functions.
+- [`scraper-service/`](scraper-service/) — Dockerised Node.js worker that does the actual scraping + emailing.
+- [`docs/`](docs/) — setup guides and reference docs.
 
-### Prerequisites
-1. Supabase CLI (`brew install supabase/tap/supabase`)
-2. Node 20+
-3. Stripe account with webhook forwarding (Stripe CLI recommended)
+## Stack
 
-### Frontend
+- **Frontend**: React 18 + Vite + TypeScript + React Router.
+- **Backend**: Supabase (Postgres, Auth, Edge Functions running on Deno).
+- **Payments**: Stripe Checkout.
+- **Email**: Resend.
+- **Scraping**: Puppeteer + `puppeteer-extra-plugin-stealth`, running in Docker on a home machine.
+
+## Getting started
+
+- **Scraper (the important bit for now)** → [`docs/SCRAPER_SETUP.md`](docs/SCRAPER_SETUP.md)
+- **Full architecture** → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- **Database schema** → [`docs/DATABASE.md`](docs/DATABASE.md)
+- **Environment variables** → [`docs/env.sample`](docs/env.sample)
+
+### Frontend (optional while we focus on alerts)
+
 ```bash
-cd /Users/harry/YellowSticker/web
+cd web
 npm install
-cp env.sample .env.local # then fill values
+cp env.sample .env.local   # then fill values
 npm run dev
 ```
 
-Environment variables:
-- `VITE_PUBLIC_SUPABASE_URL`
-- `VITE_PUBLIC_SUPABASE_ANON_KEY`
-- `VITE_PUBLIC_SUPABASE_FUNCTIONS_URL` (usually `<supabase-url>/functions/v1`)
-- `VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-
 ### Supabase backend
+
 ```bash
-cd /Users/harry/YellowSticker
 supabase start
 supabase db reset --seed supabase/seed.sql
+supabase functions deploy create-checkout-session stripe-webhook status-dashboard subscription-management admin-auth
 ```
 
-Deploy functions:
+Set the secrets listed in [`docs/env.sample`](docs/env.sample) via `supabase secrets set …`.
+
+### Scraper worker
+
 ```bash
-supabase functions deploy create-checkout-session
-supabase functions deploy stripe-webhook
-supabase functions deploy scrape-tickets
-supabase functions deploy status-dashboard
+cd scraper-service
+cp env.example .env   # fill in Supabase + Resend + ALERT_EMAIL
+docker compose up -d --build
+docker compose logs -f
 ```
 
-Set secrets (see `docs/env.sample` for full list):
-```bash
-supabase secrets set \
-  SUPABASE_URL=... \
-  SUPABASE_SERVICE_ROLE_KEY=... \
-  STRIPE_SECRET_KEY=... \
-  STRIPE_WEBHOOK_SECRET=... \
-  RESEND_API_KEY=... \
-  PUBLIC_SITE_URL=https://yellowsticker.app \
-  SCRAPER_USER_AGENTS='["ua1","ua2"]' \
-  SCRAPINGANT_API_KEY=... \
-  SCRAPINGANT_PROXY_COUNTRIES='["gb","se","fi"]' \
-  SCRAPINGANT_DAILY_LIMIT=500 \
-  RESEND_DAILY_LIMIT=200 \
-  RESEND_MONTHLY_LIMIT=10000
-```
+## Current state of things
 
-Stripe webhook forwarding (local):
-```bash
-stripe listen --forward-to http://127.0.0.1:54321/functions/v1/stripe-webhook
-```
-
-### Scheduled scraping
-- Use Supabase Scheduler: `supabase cron create scrape-tickets --schedule "*/15 * * * *" --function scrape-tickets`
-- Each run checks every production, updates availability, and notifies paid subscribers.
-
-### Testing the flow
-1. Seed productions: `supabase db reset`.
-2. Start frontend (`npm run dev`).
-3. Use the production page form → hits `create-checkout-session` → Stripe test card.
-4. Stripe webhook flips subscription to active.
-5. Trigger scraper manually: `supabase functions invoke scrape-tickets`.
-
-### Notes
-- Scraper modules live in `supabase/functions/scrape-tickets/scrapers`. Add theatre-specific logic or Playwright drivers there.
-- Notification logging stored in `notification_logs` for auditing.
-- Hidden monitoring dashboard available at `/monitor` (not linked). It calls the `status-dashboard` edge function for health indicators.
-- Admin / dashboard stretch goals can build on Supabase RLS policies & React admin routes.
-
+- ✅ Scraper runs from a home machine → no more Cloudflare datacenter blocks.
+- ✅ Notifications go to a single `ALERT_EMAIL` (testing mode). The subscription / paid-user fan-out is wired up in the DB but not in the worker yet; see [`docs/SCRAPER_SETUP.md`](docs/SCRAPER_SETUP.md) for where to re-enable it.
+- 🛠️ Frontend + Stripe payment flow are preserved but not actively in use. Fine to leave as-is for now.

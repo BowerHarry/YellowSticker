@@ -87,21 +87,6 @@ export const getMonitorStatus = async (): Promise<MonitorStatusResponse | null> 
   return data ?? null;
 };
 
-export const triggerScrape = async (): Promise<{ success?: boolean; error?: string }> => {
-  const { data, error } = await callSupabaseFunction<{ success: boolean; message: string }>(
-    'trigger-scrape',
-    {
-      method: 'POST',
-    },
-  );
-
-  if (error) {
-    return { error };
-  }
-
-  return { success: data?.success ?? false };
-};
-
 export const adminAuth = async (
   username: string,
   password: string,

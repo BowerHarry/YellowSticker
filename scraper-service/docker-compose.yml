@@ -3,25 +3,32 @@ services:
     build: .
     container_name: yellow-sticker-scraper
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    env_file:
+      - .env
     environment:
-      - PORT=3000
-      - API_KEY=${API_KEY}
-    # Resource limits to prevent runaway processes
+      # Defaults; anything in .env wins.
+      TZ: Europe/London
+      HEALTH_PORT: "3000"
+    ports:
+      # Optional: only needed if you want to hit the /health endpoint from your LAN.
+      # The worker does NOT need inbound traffic to do its job.
+      - "127.0.0.1:3000:3000"
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 2G
         reservations:
-          cpus: '0.5'
+          cpus: "0.25"
           memory: 512M
-    # Health check
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/health"]
+      interval: 1m
       timeout: 10s
       retries: 3
-      start_period: 40s
-
+      start_period: 30s
