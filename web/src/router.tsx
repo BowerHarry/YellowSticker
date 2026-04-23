@@ -7,6 +7,7 @@ import { NotFoundPage } from './routes/NotFoundPage';
 import { MonitorPage } from './routes/MonitorPage';
 import { FAQPage } from './routes/FAQPage';
 import { SubscriptionManagementPage } from './routes/SubscriptionManagementPage';
+import { LoginPage } from './routes/LoginPage';
 
 export const router = createBrowserRouter([
   {
@@ -37,6 +38,10 @@ export const router = createBrowserRouter([
       {
         path: 'manage',
         element: <SubscriptionManagementPage />,
+      },
+      {
+        path: 'login',
+        element: <LoginPage />,
       },
       {
         path: '*',

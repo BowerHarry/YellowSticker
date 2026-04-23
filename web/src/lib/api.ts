@@ -83,6 +83,17 @@ export const createCheckoutSession = async (
   return { checkoutUrl: data?.checkoutUrl };
 };
 
+export const requestManageLink = async (
+  email: string,
+): Promise<{ ok?: boolean; error?: string }> => {
+  const { data, error } = await callSupabaseFunction<{ ok: boolean }>('request-manage-link', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+  if (error) return { error };
+  return { ok: data?.ok ?? false };
+};
+
 export const getMonitorStatus = async (): Promise<MonitorStatusResponse | null> => {
   const { data, error } = await callSupabaseFunction<MonitorStatusResponse>('status-dashboard');
   if (error) {

@@ -42,7 +42,7 @@ export const SubscriptionManagementPage = () => {
 
   useEffect(() => {
     if (!token) {
-      setError('Missing management token');
+      setError('Missing management token. Request a fresh magic link to continue.');
       setLoading(false);
       return;
     }
@@ -118,6 +118,9 @@ export const SubscriptionManagementPage = () => {
         <div className="banner banner--error">
           <p style={{ margin: 0 }}>{error}</p>
         </div>
+        <Link to="/login" className="btn btn--ghost btn--full">
+          Email me a new magic link
+        </Link>
         <Link to="/" className="btn btn--full">
           Back to home
         </Link>

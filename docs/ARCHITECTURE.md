@@ -70,14 +70,17 @@ the alerting core.
 - **Database** — see [`DATABASE.md`](DATABASE.md).
 - **Edge functions** (Deno runtime, deployed via `supabase functions deploy`):
   - `create-checkout-session` — builds a Stripe Checkout Session for a
-    production + user at `PRICE_PER_PRODUCTION_GBP_PENCE`. For auto-renew
-    plans it also sets `cancel_at = production.end_date + 7 days` on the
-    Stripe Subscription so renewals stop themselves once the show ends.
+    production + user at `PRICE_PER_PRODUCTION_GBP_PENCE`.
   - `stripe-webhook` — consumes Stripe events, keeps
     `subscriptions.payment_status` / `current_period_start` /
     `last_payment_intent_id` in sync, fires signup + renewal +
-    cancellation emails, and refunds any renewal that Stripe fires after
-    the production's end date (belt-and-braces for the `cancel_at` above).
+    cancellation emails, sets Stripe `cancel_at = production.end_date + 7
+    days` on activation, and refunds any renewal that Stripe fires after
+    the production's end date (belt-and-braces for `cancel_at`).
+  - `request-manage-link` — public "magic link login" endpoint used by
+    `/login`. Accepts an email, and if matching subscriptions exist sends
+    one email containing per-subscription manage links. Always returns a
+    generic success response to avoid account enumeration.
   - `subscription-management` — token-gated manage page (one-click
     cancel). Enforces the refund guarantee: if no standing tickets have
     been found since the subscription's current billing period started,

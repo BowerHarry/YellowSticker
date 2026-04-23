@@ -12,6 +12,9 @@ export const Header = () => (
       </Link>
 
       <div className="site-header__actions">
+        <Link to="/login" className="btn btn--small btn--ghost">
+          Log in
+        </Link>
         <a href="#productions" className="btn btn--small">
           Get alerts
         </a>

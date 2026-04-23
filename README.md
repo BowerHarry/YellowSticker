@@ -17,6 +17,7 @@ standing tickets available for today, Yellow Sticker spots it and emails you.
                                      │     status-dashboard           │
                                      │     create-checkout-session    │
                                      │     stripe-webhook             │
+                                     │     request-manage-link        │
                                      │     subscription-management    │
                                      │     send-test-email            │
                                      │     admin-preview-cancel       │
@@ -90,6 +91,7 @@ supabase db reset --seed supabase/seed.sql
 supabase functions deploy \
   create-checkout-session \
   stripe-webhook \
+  request-manage-link \
   status-dashboard \
   subscription-management \
   send-test-email \
@@ -158,8 +160,12 @@ npm run dev
   each transition for monitoring.
 - Stripe Checkout is live at £2/month per production with both auto-renew
   and one-off options. The refund guarantee ("no alerts, no charge") is
-  enforced by `subscription-management` on cancel, and Stripe's
-  `cancel_at` stops renewals 7 days after each production's `end_date`.
+  enforced by `subscription-management` on cancel; `stripe-webhook` also
+  sets Stripe `cancel_at` to stop renewals 7 days after each production's
+  `end_date`.
+- Header now includes a customer **Log in** entrypoint. Users enter their
+  email on `/login` and receive one or more magic manage links via
+  `request-manage-link` (non-enumerating response).
 - The `/monitor` dashboard exposes:
   - a one-click sender for every lifecycle email template (signup,
     renewal, cancel, expiry) via `send-test-email`;

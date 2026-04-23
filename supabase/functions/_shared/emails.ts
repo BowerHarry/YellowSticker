@@ -240,6 +240,56 @@ export const expiryNoticeEmail = (
   };
 };
 
+export const accountAccessEmail = (
+  entries: Array<{
+    productionName: string;
+    theatre: string;
+    city?: string | null;
+    managementToken: string;
+    isActive: boolean;
+    subscriptionEnd?: string | null;
+  }>,
+): TemplateOutput => {
+  const intro =
+    entries.length === 1
+      ? `<p>Use the secure link below to manage your Yellow Sticker subscription.</p>`
+      : `<p>Use the secure links below to manage your Yellow Sticker subscriptions.</p>`;
+  const rows = entries
+    .map((entry) => {
+      const href = manageLink(entry.managementToken) ?? siteUrl();
+      const status = entry.isActive
+        ? `<span style="color:#065f46;background:#ecfdf5;border-radius:999px;padding:2px 8px;font-size:11px;">Active</span>`
+        : `<span style="color:#92400e;background:#fffbeb;border-radius:999px;padding:2px 8px;font-size:11px;">Inactive</span>`;
+      const endLine =
+        entry.subscriptionEnd && !entry.isActive
+          ? `<div style="font-size:12px;color:#98a2b3;margin-top:4px;">Ended ${escapeHtml(formatDate(entry.subscriptionEnd))}</div>`
+          : '';
+      return `
+        <tr>
+          <td style="padding: 12px 0; border-top: 1px solid #eee;">
+            <div style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(entry.productionName)} ${status}</div>
+            <div style="font-size: 13px; color: #667085;">${escapeHtml(entry.theatre)}${entry.city ? `, ${escapeHtml(entry.city)}` : ''}</div>
+            ${endLine}
+            <div style="margin-top: 8px;">
+              <a href="${escapeHtml(href)}" style="display:inline-block;padding:8px 12px;background:#eab308;color:#0b0b0c;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">Manage this subscription</a>
+            </div>
+          </td>
+        </tr>`;
+    })
+    .join('');
+  const body = `
+    ${intro}
+    <p style="font-size: 13px; color: #667085;">If you didn't request this email, you can safely ignore it.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 12px;">
+      ${rows}
+    </table>
+  `;
+  return {
+    subject: 'Your Yellow Sticker login links',
+    html: wrap('Manage your subscriptions', body, null),
+  };
+};
+
 // Low-level send. Returns the Resend message id or null on failure; never
 // throws, so callers can treat email sending as best-effort.
 export const sendEmail = async ({
