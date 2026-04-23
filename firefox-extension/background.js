@@ -76,9 +76,9 @@ const log = (...args) => console.log('[yellow-sticker]', ...args);
 const warn = (...args) => console.warn('[yellow-sticker]', ...args);
 const error = (...args) => console.error('[yellow-sticker]', ...args);
 
-// Today in Europe/London. We need several representations because Delfont's
-// HTML uses aria-label strings like "Event Tray for April 23rd 2026" while
-// its URLs use "04-23-2026" and its API uses ISO dates.
+// Today in Europe/London in a few formats. The API uses `YYYY/MM/01` for the
+// month query and ISO datetimes (`LocalDate`) in responses. Event-inventory
+// referers use the `MM-DD-YYYY` style.
 const todayInLondon = () => {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-GB', {
@@ -90,25 +90,15 @@ const todayInLondon = () => {
   const year = Number(parts.find((p) => p.type === 'year').value);
   const month = Number(parts.find((p) => p.type === 'month').value);
   const day = Number(parts.find((p) => p.type === 'day').value);
-  const monthLong = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/London',
-    month: 'long',
-  }).format(now);
   const pad = (n) => String(n).padStart(2, '0');
   return {
     year,
     month,
     day,
-    monthLong,
     iso: `${year}-${pad(month)}-${pad(day)}`,
     usStyle: `${pad(month)}-${pad(day)}-${year}`,
+    apiMonth: `${year}/${pad(month)}/01`,
   };
-};
-
-const getOrdinal = (n) => {
-  const suffixes = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return n + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
 };
 
 class ChallengeError extends Error {
@@ -160,57 +150,6 @@ const fetchDelfontJSON = async (path, { referer } = {}) => {
   }
   return resp.json();
 };
-
-// HTML counterpart. Used to discover today's EventIDs by parsing the
-// server-rendered calendar page rather than guessing an API shape.
-//
-// We intentionally do NOT sniff the body for challenge markers here — the
-// normal Delfont page is Cloudflare-fronted and includes e.g. a preloaded
-// Turnstile script, which previously tripped a false challenge detection on
-// every request. Instead we only flag the obvious, unambiguous cases
-// (non-HTML content-type, 403/503 status). The caller then decides based on
-// whether the parsed DOM actually contains what we expect.
-const fetchDelfontHTML = async (url) => {
-  const resp = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',
-    headers: {
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-GB,en;q=0.9',
-    },
-    redirect: 'follow',
-  });
-  const contentType = resp.headers.get('content-type') || '';
-  if (!contentType.includes('html')) {
-    throw new ChallengeError('Non-HTML response for calendar page', {
-      url,
-      status: resp.status,
-      contentType,
-    });
-  }
-  const text = await resp.text();
-  if (resp.status === 403 || resp.status === 503) {
-    throw new ChallengeError(`Delfont HTML ${resp.status} (likely challenge)`, {
-      url,
-      status: resp.status,
-      snippet: text.slice(0, 300),
-    });
-  }
-  if (!resp.ok) throw new Error(`Delfont HTML ${resp.status}: ${url}`);
-  return text;
-};
-
-// Narrow markers for the cases where we DO have 200 HTML but it's actually
-// an interstitial. Only checked after we've failed to parse anything useful
-// out of the document, to avoid the previous over-triggering.
-const CHALLENGE_MARKERS = [
-  /<title>\s*Just a moment/i,
-  /<title>\s*Attention Required/i,
-  /<title>\s*You are now in line/i,
-  /window\._cf_chl_opt\b/,
-  /queue-it\.net\/(softblock|challengeapi)/i,
-];
-const looksLikeChallenge = (html) => CHALLENGE_MARKERS.some((re) => re.test(html));
 
 // Open a hidden background tab to the production's public URL. The real
 // browser will execute any CF JS challenge silently, refreshing cookies,
@@ -266,130 +205,32 @@ const fetchDelfontJSONWithHealing = async (path, { referer, productionUrl } = {}
   }
 };
 
-const fetchDelfontHTMLWithHealing = async (url, { productionUrl } = {}) => {
-  try {
-    return await fetchDelfontHTML(url);
-  } catch (err) {
-    if (!(err instanceof ChallengeError)) throw err;
-    log(`Challenge detected on calendar page ${url}; attempting cookie refresh`);
-    await refreshCookiesViaHiddenTab(productionUrl ?? url);
-    return await fetchDelfontHTML(url);
-  }
-};
-
 // --- Delfont adapter -------------------------------------------------------
+//
+// Two endpoints are used:
+//
+//   1. GET /api/events/getbymonth?requestedTime=YYYY/MM/01
+//                                &salesChannel=Web&seriesCode=<code>
+//      Returns an array of performance objects for the given month. We
+//      filter to ones whose `LocalDate` is on today's London date, that
+//      have `HasProducts=true` and `IsBeforeSaleDate=false` (i.e. the
+//      tickets are actually on sale right now).
+//
+//   2. GET /api/eventinventory/<EventID>?includeOpens=true&salesChannel=Web
+//      Returns the full seat map + SeatAlertValues. We count entries in
+//      MapSeats whose alert is "Standing" and aren't already reserved.
+//
+// Both are authenticated only by the user's Firefox cookies, which are
+// refreshed as a side-effect of the hidden-tab self-healing step.
 
-/**
- * The `/api/events/calendarseries/<code>` endpoint only returns show-level
- * metadata (name, venue, banner, promotions). The list of performances
- * itself isn't served as JSON — it's rendered server-side into the series
- * HTML page as `<calendar-event>` custom elements inside an event tray
- * labelled e.g. `aria-label="Event Tray for April 23rd 2026"`.
- *
- * We fetch that HTML with the user's session cookies, parse it with
- * DOMParser, locate today's tray by aria-label, and pull EventIDs out of
- * the `<calendar-event>` elements' data attributes / inner anchors.
- */
-const extractPerformanceIdFromElement = (el) => {
-  const candidates = [
-    el.getAttribute && el.getAttribute('data-performance-id'),
-    el.getAttribute && el.getAttribute('data-event-id'),
-    el.getAttribute && el.getAttribute('data-performance'),
-    el.getAttribute && el.getAttribute('data-session-id'),
-    el.getAttribute && el.getAttribute('data-id'),
-  ];
-  const inner = el.querySelector ? el.querySelector('button, a') : null;
-  if (inner) {
-    candidates.push(
-      inner.getAttribute('data-performance-id'),
-      inner.getAttribute('data-event-id'),
-      inner.getAttribute('data-session-id'),
-      inner.getAttribute('data-id'),
-      inner.getAttribute('href'),
-    );
-  }
-  // Last resort: scan the rendered HTML for anything that looks like
-  // `<slug>-<bignumber>` (as in `oliver-1154141`) or a bare 5+ digit id.
-  candidates.push(el.outerHTML);
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const str = String(candidate).trim();
-    if (/^\d{5,}$/.test(str)) return str;
-    const slug = str.match(/[a-z0-9-]+-(\d{5,})/i);
-    if (slug) return slug[1];
-    const bare = str.match(/\b(\d{5,})\b/);
-    if (bare) return bare[1];
-  }
-  return null;
-};
-
-const extractTodayEventIdsFromHTML = (html, today) => {
-  const { year, month, day, monthLong } = today;
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const title = (doc.querySelector('title')?.textContent ?? '').trim();
-  const totalCalendarEvents = doc.querySelectorAll('calendar-event').length;
-
-  // Try a handful of aria-label spellings — Delfont's template formats it
-  // slightly differently between venues / seasons.
-  const labels = [
-    `Event Tray for ${monthLong} ${getOrdinal(day)} ${year}`,
-    `Event Tray for ${monthLong} ${day} ${year}`,
-    `Event Tray for ${monthLong} ${day}, ${year}`,
-    `Event Tray for ${getOrdinal(day)} ${monthLong} ${year}`,
-  ];
-  let tray = null;
-  for (const label of labels) {
-    tray = doc.querySelector(`[aria-label="${label}"]`);
-    if (tray) break;
-  }
-
-  // Positive signal: if the page has NO <calendar-event> elements at all AND
-  // looks like a known interstitial, treat it as a challenge so the
-  // self-healing refresh kicks in. Otherwise, assume the page rendered fine
-  // and we're legitimately looking at a day with no standing performances.
-  if (totalCalendarEvents === 0 && looksLikeChallenge(html)) {
-    throw new ChallengeError('Calendar HTML appears to be a challenge page', {
-      title,
-      length: html.length,
-    });
-  }
-
-  const eventNodes = tray
-    ? tray.querySelectorAll('calendar-event')
-    : doc.querySelectorAll('calendar-event');
-
-  const found = new Set();
-  const mmdd = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}-${year}`;
-  const isoPrefix = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-  for (const node of eventNodes) {
-    // If we fell back to "all calendar events on the page" because the tray
-    // label didn't match, we still want to pick only today's performances.
-    // Check any obvious date attributes, else accept the node (Delfont's
-    // initial HTML usually only has today's tray populated anyway).
-    if (!tray) {
-      const hay = [
-        node.getAttribute('data-start-date'),
-        node.getAttribute('data-picker-date'),
-        node.getAttribute('data-date'),
-        node.outerHTML,
-      ]
-        .filter(Boolean)
-        .join(' ');
-      if (hay && !hay.includes(mmdd) && !hay.includes(isoPrefix)) continue;
-    }
-    const id = extractPerformanceIdFromElement(node);
-    if (id) found.add(id);
-  }
-  return {
-    trayFound: !!tray,
-    eventIds: [...found],
-    totalCalendarEvents,
-    title,
-    htmlLength: html.length,
-  };
-};
+const pickTodayPerformances = (events, todayIso) =>
+  events.filter(
+    (e) =>
+      typeof e?.LocalDate === 'string' &&
+      e.LocalDate.startsWith(todayIso) &&
+      e?.HasProducts === true &&
+      e?.IsBeforeSaleDate !== true,
+  );
 
 /**
  * Count available standing tickets in an `eventinventory` response.
@@ -444,12 +285,17 @@ const scrapeDelfontProduction = async (production) => {
 
   const today = todayInLondon();
 
-  // 1. Fetch the series HTML and parse today's performances out of the
-  //    server-rendered calendar. The JSON `calendarseries` endpoint only
-  //    returns show metadata, so we can't use it for discovery.
-  let html;
+  // 1. List all performances in this month for the series. The widget uses
+  //    a lowercase series code in the query; we follow the same convention.
+  const monthPath =
+    `/api/events/getbymonth?requestedTime=${encodeURIComponent(today.apiMonth)}` +
+    `&salesChannel=Web&seriesCode=${encodeURIComponent(seriesCode.toLowerCase())}`;
+  let events;
   try {
-    html = await fetchDelfontHTMLWithHealing(productionUrl, { productionUrl });
+    events = await fetchDelfontJSONWithHealing(monthPath, {
+      referer: productionUrl,
+      productionUrl,
+    });
   } catch (err) {
     return {
       productionId: id,
@@ -459,57 +305,40 @@ const scrapeDelfontProduction = async (production) => {
     };
   }
 
-  let parsed;
-  try {
-    parsed = extractTodayEventIdsFromHTML(html, today);
-  } catch (err) {
-    if (err instanceof ChallengeError) {
-      // Second-chance: refresh cookies and retry the whole HTML fetch.
-      log(`[${name}] parser flagged challenge, refreshing cookies`);
-      await refreshCookiesViaHiddenTab(productionUrl);
-      try {
-        const retryHtml = await fetchDelfontHTML(productionUrl);
-        parsed = extractTodayEventIdsFromHTML(retryHtml, today);
-      } catch (err2) {
-        return {
-          productionId: id,
-          status: 'error',
-          reason: 'cloudflare_or_queueit',
-          detail: { message: err2.message, challenge: err2.detail ?? null },
-        };
-      }
-    } else {
-      throw err;
-    }
+  if (!Array.isArray(events)) {
+    return {
+      productionId: id,
+      status: 'error',
+      reason: 'calendar_unexpected_shape',
+      detail: { receivedType: typeof events },
+    };
   }
 
-  const { trayFound, eventIds: todayIds, totalCalendarEvents, title, htmlLength } = parsed;
+  const todayEvents = pickTodayPerformances(events, today.iso);
   log(
-    `[${name}] calendar parsed: tray=${trayFound}, ` +
-      `todayEvents=${todayIds.length}, totalEventsOnPage=${totalCalendarEvents}, ` +
-      `title="${title}", bytes=${htmlLength}`,
+    `[${name}] month has ${events.length} event(s), ${todayEvents.length} on ${today.iso}`,
   );
 
-  if (todayIds.length === 0) {
+  if (todayEvents.length === 0) {
     return {
       productionId: id,
       status: 'unavailable',
-      reason: trayFound ? 'no_performances_today' : 'no_tray_today',
+      reason: 'no_performances_today',
       performanceCount: 0,
       standCount: 0,
       performances: [],
-      detail: { totalCalendarEvents, title, htmlLength },
     };
   }
 
   // 2. For each performance, fetch the seat-map inventory JSON.
   let totalStanding = 0;
   const performances = [];
-  for (const eventId of todayIds) {
+  for (const event of todayEvents) {
+    const eventId = String(event.ID);
+    const urlSafeName = event.UrlSafeName || `${name.toLowerCase().replace(/\s+/g, '-')}-${eventId}`;
     const invPath = `/api/eventinventory/${encodeURIComponent(eventId)}?includeOpens=true&salesChannel=Web`;
-    // The referer should look like the event page the user would have
-    // landed on — matches what a real browser sends.
-    const referer = `${productionUrl}/${encodeURIComponent(name.toLowerCase().replace(/\s+/g, '-'))}-${eventId}?startDate=${today.usStyle}`;
+    // Referer mirrors what a real browser would send from the event page.
+    const referer = `${productionUrl}/${urlSafeName}?startDate=${today.usStyle}`;
     try {
       const inventory = await fetchDelfontJSONWithHealing(invPath, {
         referer,
@@ -517,8 +346,13 @@ const scrapeDelfontProduction = async (production) => {
       });
       const standCount = countStandingSeats(inventory);
       totalStanding += standCount;
-      performances.push({ eventId, standCount });
-      log(`[${name}] event ${eventId}: ${standCount} standing ticket(s)`);
+      performances.push({
+        eventId,
+        standCount,
+        localDate: event.LocalDate,
+        availabilityCount: event.AvailabilityCount,
+      });
+      log(`[${name}] event ${eventId} (${event.LocalDate}): ${standCount} standing ticket(s)`);
     } catch (err) {
       warn(`[${name}] event ${eventId} failed`, err);
       performances.push({ eventId, error: err.message });
@@ -530,7 +364,7 @@ const scrapeDelfontProduction = async (production) => {
     productionId: id,
     status,
     standCount: totalStanding,
-    performanceCount: todayIds.length,
+    performanceCount: todayEvents.length,
     performances,
     reason: status === 'available' ? `found ${totalStanding} standing ticket(s)` : undefined,
   };

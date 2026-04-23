@@ -27,7 +27,7 @@
 │  firefox-extension/ running inside Firefox on a Mac mini     │
 │  ─ alarm every 10m (configurable)                            │
 │  ─ authenticated calls to                                    │
-│      /api/events/calendarseries/{seriesCode}                 │
+│      /api/events/getbymonth?seriesCode=…&requestedTime=…     │
 │      /api/eventinventory/{eventID}                           │
 │  ─ self-heals by opening a hidden tab when CF cookies expire │
 │  ─ POSTs scrape results & heartbeats to report-scrape        │
@@ -85,9 +85,11 @@ Per cycle (every 10 minutes by default):
    `adapter != 'none'`, `scrape_disabled_reason IS NULL`, and today's date
    inside `[start_date, end_date]`.
 2. For each Delfont production:
-   - `GET /api/events/calendarseries/<series_code>?salesChannel=Web` — finds
-     today's `EventID`s by matching `StartDateTime` against today in London.
-   - For each `EventID`,
+   - `GET /api/events/getbymonth?requestedTime=YYYY/MM/01&salesChannel=Web&seriesCode=<code>`
+     — returns every performance in the current month. The extension filters
+     to rows whose `LocalDate` starts with today's London date and whose
+     `HasProducts === true` and `IsBeforeSaleDate === false`.
+   - For each surviving `ID`,
      `GET /api/eventinventory/<EventID>?includeOpens=true&salesChannel=Web`
      — counts `MapSeats` where `!isReserved` and `seatAlertId` maps to a
      `SeatAlertValues` entry with `displayName === 'Standing'`.
