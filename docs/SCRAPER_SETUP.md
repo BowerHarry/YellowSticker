@@ -201,6 +201,8 @@ A previous run is still going (they normally finish in 2–5 minutes; if there a
 
 The worker waited up to 90s in-browser for the Cloudflare interstitial to clear and it didn't. Some notes:
 
+- The scraper runs Chromium in **headed mode under Xvfb** (a virtual framebuffer) inside the container by default. Headed Chrome clears Cloudflare much more reliably than `headless: 'new'` because CF fingerprints things like GPU context and compositor timing that headless can't easily fake.
+  - To force headless for debugging, set `SCRAPE_HEADLESS=true` in `.env`.
 - The scraper uses a **persistent Chromium profile** mounted via the `chrome-profile` Docker volume. Once we've cleared Cloudflare once for a domain, the `cf_clearance` cookie is reused on subsequent runs — so repeated failures usually mean the cookie expired or our fingerprint changed. First runs after a fresh install always take longest.
 - If this happens a lot, bump `SCRAPE_WAIT_MS` higher (e.g. `25000`).
 - Nuking the profile can help if it gets into a bad state: `docker compose down && docker volume rm scraper-service_chrome-profile && docker compose up -d`.

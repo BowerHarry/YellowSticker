@@ -40,6 +40,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxtst6 \
     tzdata \
     wget \
+    xvfb \
+    dbus-x11 \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -62,15 +64,18 @@ RUN npx puppeteer browsers install chrome
 
 USER root
 COPY --chown=scraper:scraper src ./src
+COPY --chown=scraper:scraper docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 USER scraper
 
 ENV NODE_ENV=production \
     TZ=Europe/London \
-    HEALTH_PORT=3000
+    HEALTH_PORT=3000 \
+    SCRAPE_HEADLESS=false
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=1m --timeout=10s --start-period=30s --retries=3 \
   CMD curl -fsS http://localhost:3000/health || exit 1
 
-CMD ["node", "src/index.js"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -15,22 +15,28 @@ const log = createLogger('browser');
 // subsequent runs entirely.
 const USER_DATA_DIR = process.env.CHROME_USER_DATA_DIR || '/app/.chrome-profile';
 
+// Headed mode (via Xvfb inside the container) clears Cloudflare challenges
+// much more reliably than `headless: 'new'`. Default to headed; set
+// SCRAPE_HEADLESS=true in .env to force headless if needed.
+const HEADLESS = String(process.env.SCRAPE_HEADLESS || 'false').toLowerCase() === 'true';
+
 export const launchBrowser = async () => {
-  log.info(`Launching Chromium (userDataDir=${USER_DATA_DIR})`);
+  log.info(`Launching Chromium (headless=${HEADLESS}, userDataDir=${USER_DATA_DIR})`);
   const browser = await puppeteer.launch({
-    headless: 'new',
+    headless: HEADLESS ? 'new' : false,
     userDataDir: USER_DATA_DIR,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
       '--no-first-run',
-      '--disable-gpu',
       '--disable-blink-features=AutomationControlled',
       '--disable-infobars',
       '--window-size=1920,1080',
       '--disable-extensions',
+      // NB: we deliberately DO NOT pass --disable-gpu or
+      // --disable-accelerated-2d-canvas in headed mode — Cloudflare's
+      // fingerprinter looks for GPU context, and real browsers have one.
     ],
     ignoreHTTPSErrors: true,
   });
