@@ -4,23 +4,6 @@ import { useProductions } from '../hooks/useProductions';
 import { useComingSoonProductions } from '../hooks/useComingSoonProductions';
 import { ProductionCard } from '../components/ProductionCard';
 
-const howItWorks = [
-  {
-    number: '1',
-    title: 'Choose a show',
-    body: 'Pick a production we cover and add it to your watchlist.',
-  },
-  {
-    number: '2',
-    title: 'Subscribe',
-    body: '£2 a month per show. Cancel anytime, refund if no tickets are found.',
-  },
-  {
-    number: '3',
-    title: 'Get notified',
-    body: 'Email or Telegram the moment same-day standing tickets drop.',
-  },
-];
 
 export const HomePage = () => {
   const { productions, loading, error } = useProductions();
@@ -40,7 +23,7 @@ export const HomePage = () => {
           </h1>
           <p className="hero__subtitle">
             Yellow Sticker quietly watches official box offices and pings you the second same-day
-            standing tickets appear for the shows you care about. £2 a month per show.
+            standing tickets appear for the shows you care about.
           </p>
           <div className="hero__cta">
             <a href="#productions" className="btn btn--large">
@@ -55,7 +38,7 @@ export const HomePage = () => {
             <span className="hero__meta-sep" />
             <span>Cancel anytime</span>
             <span className="hero__meta-sep" />
-            <span>No tickets, no charge</span>
+            <span>No alerts, no charge</span>
           </div>
         </div>
 
@@ -83,23 +66,67 @@ export const HomePage = () => {
                 Open box office →
               </a>
             </div>
-            <div className="alert-preview__floater alert-preview__floater--bottom">
-              Tap-through &lt; 30s
-            </div>
           </div>
         </div>
       </section>
 
       <section className="section">
         <div className="how-it-works-wrap">
-          <div className="how-it-works">
-            {howItWorks.map((card) => (
-              <div key={card.title} className="how-it-works__item">
-                <div className="how-it-works__number">{card.number}</div>
-                <h3 className="how-it-works__title">{card.title}</h3>
-                <p className="how-it-works__body">{card.body}</p>
+          <div className="steps">
+            <article className="step-card">
+              <span className="step-card__num">1</span>
+              <div className="step-card__visual" aria-hidden="true">
+                <div className="mock-tile">
+                  <div className="mock-tile__poster">YS</div>
+                  <div className="mock-tile__text">
+                    <strong>The show you love</strong>
+                    <span>Sondheim Theatre</span>
+                  </div>
+                </div>
               </div>
-            ))}
+              <h3 className="step-card__title">Pick a show</h3>
+              <p className="step-card__body">
+                Choose a production we cover and we&apos;ll start watching its box office.
+              </p>
+            </article>
+
+            <article className="step-card">
+              <span className="step-card__num">2</span>
+              <div className="step-card__visual" aria-hidden="true">
+                <div className="mock-subscribe">
+                  <div className="mock-subscribe__row">
+                    <span className="pill">£2 / month</span>
+                    <span>per show</span>
+                  </div>
+                  <span className="mock-subscribe__btn">Subscribe →</span>
+                  <span className="mock-subscribe__check">Cancel anytime</span>
+                </div>
+              </div>
+              <h3 className="step-card__title">Subscribe</h3>
+              <p className="step-card__body">
+                £2 a month per show. Cancel anytime — full refund if we don&apos;t find tickets.
+              </p>
+            </article>
+
+            <article className="step-card">
+              <span className="step-card__num">3</span>
+              <div className="step-card__visual" aria-hidden="true">
+                <div className="mock-alert">
+                  <div className="mock-alert__head">
+                    <span className="pill__dot" />
+                    Yellow Sticker · 14:02
+                  </div>
+                  <p className="mock-alert__title">
+                    <b>3 standing tickets</b> just dropped
+                  </p>
+                  <p className="mock-alert__msg">Tonight at the Sondheim — buy now from the box office.</p>
+                </div>
+              </div>
+              <h3 className="step-card__title">Get notified</h3>
+              <p className="step-card__body">
+                Email or Telegram the moment same-day standing tickets appear.
+              </p>
+            </article>
           </div>
 
           <Link
@@ -107,18 +134,40 @@ export const HomePage = () => {
             className="guarantee"
             aria-label="Money-back guarantee — read the terms"
           >
-            <div className="guarantee__stamp" aria-hidden="true">
-              <strong>100%</strong>
-              <small>Money back</small>
-            </div>
-            <div className="guarantee__body">
-              <h3 className="guarantee__title">No tickets, no charge.</h3>
+            <div className="guarantee__copy">
+              <span className="guarantee__eyebrow">Money-back guarantee</span>
+              <h3 className="guarantee__title">No alerts, no charge.</h3>
               <p className="guarantee__text">
-                If we don&apos;t find any standing tickets before your next renewal, we refund the full
-                month — automatically.
+                If we don&apos;t spot any standing tickets before your next renewal, your subscription
+                is refunded automatically — no email, no form.
               </p>
+              <span className="guarantee__cta" aria-hidden="true">
+                See the full guarantee →
+              </span>
             </div>
-            <span className="guarantee__chev" aria-hidden="true">→</span>
+
+            <div className="guarantee__receipt" aria-hidden="true">
+              <div className="guarantee__receipt-head">
+                <span>Recent activity</span>
+                <strong>● Auto-issued</strong>
+              </div>
+              <div className="guarantee__txn">
+                <div className="guarantee__txn-icon">YS</div>
+                <div className="guarantee__txn-body">
+                  <span className="guarantee__txn-name">Yellow Sticker · refund</span>
+                  <span className="guarantee__txn-meta">No standing tickets found this month</span>
+                </div>
+                <span className="guarantee__txn-amount guarantee__txn-amount--in">+£2.00</span>
+              </div>
+              <div className="guarantee__txn">
+                <div className="guarantee__txn-icon">YS</div>
+                <div className="guarantee__txn-body">
+                  <span className="guarantee__txn-name">Yellow Sticker · monthly</span>
+                  <span className="guarantee__txn-meta">Standing-ticket alerts</span>
+                </div>
+                <span className="guarantee__txn-amount guarantee__txn-amount--out">−£2.00</span>
+              </div>
+            </div>
           </Link>
         </div>
       </section>
