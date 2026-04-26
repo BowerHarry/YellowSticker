@@ -55,7 +55,7 @@ export const ProductionPage = () => {
           </p>
           <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>
             {production.description ??
-              'Same-day standing tickets move fast. We watch for availability and email you as soon as we spot seats so you can buy from the official box office.'}
+              'Same-day standing theatre tickets move fast. We watch for availability and email you as soon as we spot seats so you can buy from the official box office.'}
           </p>
 
           <div className="stat-blocks">
@@ -85,7 +85,7 @@ export const ProductionPage = () => {
           ) : (
             <>
               <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>
-                When we find same-day standing tickets for this show, we email you right away with a link to the official box office page.
+                When we find same-day standing theatre tickets for this show, we email you right away with a link to the official box office page.
               </p>
               <SubscriptionForm production={production} />
             </>

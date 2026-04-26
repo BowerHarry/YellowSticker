@@ -30,13 +30,13 @@ export const HomePage = () => {
   return (
     <div className="home">
       <section className="hero">
-        <div className="hero__label">Standing tickets today</div>
+        <div className="hero__label">Standing theatre tickets today</div>
         <h1 className="hero__title">Yellow Sticker Alerts</h1>
         <h2 className="hero__subheader">
-          Never miss discounted standing tickets for London's hottest shows.
+          Never miss discounted standing tickets for London's hottest West End shows.
         </h2>
         <p className="hero__text">
-          Get instant notifications when same-day standing tickets drop for your favourite productions.
+          Get instant notifications when same-day standing theatre tickets drop for your favourite productions.
         </p>
       </section>
 
@@ -49,18 +49,20 @@ export const HomePage = () => {
         <p className="hero__meta">
           Just £2/month per show • Email ticket alerts
         </p>
-      </section>
-
-      <Link to="/faq#refund-guarantee" className="home-guarantee">
-        <div className="home-guarantee__slant" aria-hidden="true" />
-        <div className="home-guarantee__inner">
-          <span className="home-guarantee__badge">Our guarantee</span>
-          <p className="home-guarantee__text">
-            <strong>No tickets found, no charge:</strong> if no standing tickets have been found since your last payment
-            at the point of cancellation or renewal, you get a <strong>full refund</strong>. Tap for details →
-          </p>
+        <div className="hero-guarantee">
+          <Link
+            to="/faq#refund-guarantee"
+            className="hero-guarantee__link"
+            aria-label="Money-back guarantee: read full terms on the FAQ page"
+          >
+            <span className="hero-guarantee__badge">Money-back</span>
+            <span className="hero-guarantee__text">No standing tickets found since your last payment? Full refund — details</span>
+            <span className="hero-guarantee__chev" aria-hidden="true">
+              →
+            </span>
+          </Link>
         </div>
-      </Link>
+      </section>
 
       <section className="home-section">
         <div className="how-it-works">

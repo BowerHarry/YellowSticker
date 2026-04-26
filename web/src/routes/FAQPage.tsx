@@ -54,7 +54,7 @@ export const FAQPage = () => {
           <section>
             <h2 style={{ marginTop: 0 }}>How does it work?</h2>
             <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Pick a show, subscribe for £2/month, and we email you when same-day standing tickets look
+              Pick a show, subscribe for £2/month, and we email you when same-day standing theatre tickets look
               available on the official box office site. You buy the tickets yourself — always from the theatre&apos;s
               real checkout, at the same prices everyone else sees.
             </p>

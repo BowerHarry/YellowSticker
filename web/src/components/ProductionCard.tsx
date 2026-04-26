@@ -27,9 +27,9 @@ export const ProductionCard = ({ production }: Props) => {
           <h3 className="production-card__title">{production.name}</h3>
           <div className="production-card__location">
             <span className="production-card__venue">{production.theatre}</span>
-            {production.city && (
-              <span className="production-card__city">, {production.city}</span>
-            )}
+            {production.city ? (
+              <span className="production-card__city">{production.city}</span>
+            ) : null}
           </div>
         </div>
         {production.poster_url && (() => {
