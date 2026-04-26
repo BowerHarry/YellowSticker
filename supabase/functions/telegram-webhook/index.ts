@@ -1,6 +1,7 @@
 // Receives Telegram Bot updates (set this URL with setWebhook + secret_token).
 // Links a user's Telegram chat when they open t.me/<bot>?start=<telegram_link_token>.
 import { adminClient } from '../_shared/db.ts';
+import { sendTelegramHtml } from '../_shared/telegram.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -89,6 +90,39 @@ Deno.serve(async (req) => {
     console.error('Failed to link Telegram chat', upErr);
     await sendTelegramReply(chatId, 'Could not save the link — please try again later.');
     return jsonOk();
+  }
+
+  const numericChatId = Number(chatId);
+  const { data: pendingSubs, error: pendSelErr } = await adminClient
+    .from('subscriptions')
+    .select('id, production_id, telegram_pending_welcome_html')
+    .eq('user_id', user.id)
+    .not('telegram_pending_welcome_html', 'is', null);
+
+  if (pendSelErr) {
+    console.error('Failed to load pending Telegram welcomes', pendSelErr);
+  } else {
+    for (const row of pendingSubs ?? []) {
+      const html = row.telegram_pending_welcome_html as string | null | undefined;
+      if (typeof html !== 'string' || !html.trim()) continue;
+      const tg = await sendTelegramHtml(numericChatId, html.trim());
+      if (tg) {
+        await adminClient.from('notification_logs').insert({
+          user_id: user.id,
+          production_id: row.production_id,
+          type: 'telegram',
+          channel_message_id: tg.messageId,
+          payload: { reason: 'subscription_signup_telegram_queued' },
+        });
+        const { error: clrErr } = await adminClient
+          .from('subscriptions')
+          .update({ telegram_pending_welcome_html: null })
+          .eq('id', row.id);
+        if (clrErr) console.error('Failed to clear pending Telegram welcome', clrErr);
+      } else {
+        console.warn('Pending welcome Telegram send failed; leaving queued', row.id);
+      }
+    }
   }
 
   await sendTelegramReply(

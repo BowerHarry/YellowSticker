@@ -209,7 +209,7 @@ const fanOutAvailabilityEmails = async (
     )
     .eq('production_id', production.id)
     .eq('payment_status', 'paid')
-    .gt('subscription_end', nowIso)
+    .or(`subscription_end.is.null,subscription_end.gt.${nowIso}`)
     .or(`last_alerted_at.is.null,last_alerted_at.lt.${transitionAt}`)
     .limit(MAX_FANOUT_PER_CYCLE);
 

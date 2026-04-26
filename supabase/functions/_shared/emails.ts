@@ -248,6 +248,32 @@ export const availabilityEmail = (
 };
 
 /** Compact HTML for Telegram (<b>, <a>, <i> only) — mirrors {@link availabilityEmail} content. */
+/** Short Telegram HTML after checkout when alerts include Telegram. */
+export const signupTelegramWelcomeHtml = (productionName: string, managementToken?: string | null): string => {
+  const manage = manageLink(managementToken ?? null);
+  let body = `<b>Yellow Sticker</b>\n\nYou're subscribed for standing-ticket alerts for <b>${escapeHtml(productionName)}</b>. We'll message you here when tickets look available.`;
+  if (manage) {
+    body += `\n\n<a href="${escapeHtml(manage)}">Manage subscription</a>`;
+  }
+  return body;
+};
+
+export const cancellationTelegramHtml = (
+  productionName: string,
+  reason?: string | null,
+  managementToken?: string | null,
+): string => {
+  const manage = manageLink(managementToken ?? null);
+  let body = `<b>Yellow Sticker</b>\n\nYour subscription for <b>${escapeHtml(productionName)}</b> has ended.`;
+  if (reason && reason.trim().length > 0) {
+    body += `\n\nReason: ${escapeHtml(reason.trim())}.`;
+  }
+  if (manage) {
+    body += `\n\n<a href="${escapeHtml(manage)}">Manage subscription</a>`;
+  }
+  return body;
+};
+
 export const availabilityTelegramHtml = (
   production: ProductionInfo & {
     scrapingUrl: string;

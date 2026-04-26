@@ -22,13 +22,15 @@ import Stripe from 'npm:stripe';
 import { adminClient } from '../_shared/db.ts';
 import type { ProductionRecord, UserRecord } from '../_shared/types.ts';
 import {
+  cancellationTelegramHtml,
   cancellationEmail,
   renewalEmail,
   sendEmail,
   signupEmail,
+  signupTelegramWelcomeHtml,
   stripeMode,
 } from '../_shared/emails.ts';
-import { mintTelegramLinkToken, telegramBotStartUrl } from '../_shared/telegram.ts';
+import { mintTelegramLinkToken, sendTelegramHtml, telegramBotStartUrl } from '../_shared/telegram.ts';
 
 const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
 const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
@@ -129,6 +131,42 @@ const logEmailSent = async (params: {
       recipient: params.recipient,
       ...(params.extras ?? {}),
     },
+  });
+};
+
+const sendCancellationTelegram = async (params: {
+  user: UserRecord | null;
+  dbSub: { notification_preference?: string | null; management_token?: string | null } | null;
+  production: ProductionRecord | null;
+  productionId: string;
+  userId: string;
+  reason?: string;
+}) => {
+  const prefRaw = params.dbSub?.notification_preference ?? 'email';
+  const pref = prefRaw === 'sms' ? 'telegram' : prefRaw;
+  if (pref !== 'telegram' && pref !== 'both') return;
+
+  const chatRaw = params.user?.telegram_chat_id;
+  const chatId =
+    chatRaw != null && chatRaw !== '' && Number.isFinite(Number(chatRaw))
+      ? Number(chatRaw)
+      : null;
+  if (!chatId || !params.production) return;
+
+  const tgHtml = cancellationTelegramHtml(
+    params.production.name,
+    params.reason ?? null,
+    params.dbSub?.management_token ?? null,
+  );
+  const tg = await sendTelegramHtml(chatId, tgHtml);
+  if (!tg) return;
+
+  await adminClient.from('notification_logs').insert({
+    user_id: params.userId,
+    production_id: params.productionId,
+    type: 'telegram',
+    channel_message_id: tg.messageId,
+    payload: { reason: 'subscription_ended_telegram', cancellationReason: params.reason ?? null },
   });
 };
 
@@ -331,6 +369,48 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
         }
       }
 
+      const welcomeTgHtml = signupTelegramWelcomeHtml(
+        (production as ProductionRecord).name,
+        subscription.management_token ?? null,
+      );
+      const { data: freshUser } = await adminClient
+        .from('users')
+        .select('telegram_chat_id')
+        .eq('id', actualUserId)
+        .maybeSingle();
+      const liveChatRaw = freshUser?.telegram_chat_id;
+      const liveChat =
+        liveChatRaw != null && liveChatRaw !== '' && Number.isFinite(Number(liveChatRaw))
+          ? Number(liveChatRaw)
+          : null;
+
+      if (prefForAlerts === 'telegram' || prefForAlerts === 'both') {
+        if (liveChat != null) {
+          try {
+            const tg = await sendTelegramHtml(liveChat, welcomeTgHtml);
+            if (tg) {
+              await adminClient.from('notification_logs').insert({
+                user_id: actualUserId,
+                production_id: productionId,
+                type: 'telegram',
+                channel_message_id: tg.messageId,
+                payload: { reason: 'subscription_signup_telegram' },
+              });
+            }
+          } catch (tgWelcomeErr) {
+            console.error('Failed to send signup Telegram welcome', tgWelcomeErr);
+          }
+        } else {
+          const { error: pendErr } = await adminClient
+            .from('subscriptions')
+            .update({ telegram_pending_welcome_html: welcomeTgHtml })
+            .eq('id', subscription.id);
+          if (pendErr) {
+            console.error('Failed to queue Telegram signup welcome', pendErr);
+          }
+        }
+      }
+
       const { subject, html } = signupEmail(
         {
           name: (production as ProductionRecord).name,
@@ -462,6 +542,14 @@ const handleRenewalOrPostEnd = async (invoice: Stripe.Invoice) => {
           extras: { invoiceId: invoice.id ?? null },
         });
       }
+      await sendCancellationTelegram({
+        user: (user as UserRecord | null) ?? null,
+        dbSub: (dbSub as { notification_preference?: string | null; management_token?: string | null } | null) ?? null,
+        production: (production as ProductionRecord | null) ?? null,
+        productionId,
+        userId,
+        reason: 'Production has ended',
+      });
     } catch (error) {
       console.error('Failed to process post-end renewal block', error);
     }
@@ -609,6 +697,15 @@ const handleSubscriptionDeleted = async (subscription: Stripe.Subscription) => {
       recipient: (user as UserRecord).email ?? null,
     });
   }
+
+  await sendCancellationTelegram({
+    user: (user as UserRecord | null) ?? null,
+    dbSub: (dbSub as { notification_preference?: string | null; management_token?: string | null } | null) ?? null,
+    production: (production as ProductionRecord | null) ?? null,
+    productionId,
+    userId,
+    reason: dbSub?.cancellation_reason ?? 'Subscription ended',
+  });
 };
 
 const markFailed = async (session: Stripe.Checkout.Session, status: 'failed' | 'cancelled') => {
