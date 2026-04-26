@@ -1,11 +1,12 @@
 import { Link, useParams } from 'react-router-dom';
 import { useProduction } from '../hooks/useProduction';
 import { SubscriptionForm } from '../components/SubscriptionForm';
+import { getStorageUrl } from '../lib/supabaseClient';
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return '—';
   const date = new Date(value);
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString('en-GB', {
+  return `${date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
   })}`;
@@ -18,7 +19,7 @@ export const ProductionPage = () => {
   if (loading) {
     return (
       <div className="banner">
-        <p style={{ margin: 0 }}>Loading production details…</p>
+        <p>Loading production details…</p>
       </div>
     );
   }
@@ -27,7 +28,7 @@ export const ProductionPage = () => {
     return (
       <div className="banner banner--error">
         {error ?? 'We could not find that production.'}{' '}
-        <Link to="/" style={{ color: '#fff', textDecoration: 'underline' }}>
+        <Link to="/" style={{ color: 'inherit', textDecoration: 'underline' }}>
           Return home
         </Link>
       </div>
@@ -36,54 +37,88 @@ export const ProductionPage = () => {
 
   const now = new Date();
   const startDate = production.start_date ? new Date(production.start_date) : null;
-  const isComingSoon = startDate && startDate > now;
+  const isComingSoon = !!(startDate && startDate > now);
+
+  const posterUrl = production.poster_url
+    ? production.poster_url.startsWith('http')
+      ? production.poster_url
+      : getStorageUrl('production-posters', production.poster_url)
+    : null;
 
   return (
-    <div className="grid" style={{ gap: '2rem' }}>
+    <div className="grid" style={{ gap: '1.5rem' }}>
       <Link to="/" className="back-link">
         ← Back to productions
       </Link>
 
       <div className="detail-grid">
         <article className="glass-card glass-card--accent">
-          <p style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.85rem', margin: 0 }}>
-            £2 per month
-          </p>
-          <h1 style={{ margin: '0.35rem 0' }}>{production.name}</h1>
-          <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>{production.theatre}</p>
-          <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>
-            {production.description ??
-              'Same-day standing theatre tickets move fast. We watch for availability and email you as soon as we spot seats so you can buy from the official box office.'}
-          </p>
+          {posterUrl && (
+            <div
+              style={{
+                aspectRatio: '16 / 10',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                marginBottom: '1.25rem',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <img
+                src={posterUrl}
+                alt={`${production.name} poster`}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            </div>
+          )}
+
+          <span
+            className="pill pill--muted"
+            style={{ background: 'rgba(255, 214, 10, 0.1)', color: 'var(--yellow)', borderColor: 'var(--border-yellow)' }}
+          >
+            £2 / month
+          </span>
+          <h1 style={{ margin: '0.625rem 0 0.25rem' }}>{production.name}</h1>
+          <p className="muted" style={{ margin: 0 }}>{production.theatre}</p>
+
+          {production.description && (
+            <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>{production.description}</p>
+          )}
 
           <div className="stat-blocks">
             <div className="stat-block">
-              <span>Last checked</span>
-              <strong>{formatDateTime(production.last_checked_at)}</strong>
+              <span className="stat-block__label">Last checked</span>
+              <span className="stat-block__value">{formatDateTime(production.last_checked_at)}</span>
             </div>
             <div className="stat-block">
-              <span>Last found</span>
-              <strong>{formatDateTime(production.last_standing_tickets_found_at)}</strong>
+              <span className="stat-block__label">Last tickets found</span>
+              <span className="stat-block__value">
+                {formatDateTime(production.last_standing_tickets_found_at)}
+              </span>
             </div>
           </div>
         </article>
 
         <article className="glass-card form-panel">
-          <h2>Reserve your alert</h2>
+          <h2 style={{ marginBottom: '0.25rem' }}>Reserve your alerts</h2>
           {isComingSoon ? (
-            <div>
-              <p style={{ color: 'var(--yellow)', marginTop: 0, fontWeight: 500 }}>
-                This production is coming soon. Subscriptions will be available starting {startDate?.toLocaleDateString('en-GB', { 
-                  month: 'long', 
-                  day: 'numeric', 
-                  year: 'numeric' 
-                })}.
+            <>
+              <p className="muted" style={{ margin: '0 0 1rem' }}>
+                Subscriptions open when the show starts.
               </p>
-            </div>
+              <div className="banner banner--warning">
+                <p>
+                  This production opens{' '}
+                  <strong>
+                    {startDate?.toLocaleDateString('en-GB', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </strong>
+                  . Check back closer to the date.
+                </p>
+              </div>
+            </>
           ) : (
             <>
-              <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>
-                When we find same-day standing theatre tickets for this show, we email you right away with a link to the official box office page.
+              <p className="muted" style={{ margin: '0 0 1.25rem' }}>
+                We watch the official box office and notify you the moment same-day standing tickets appear.
               </p>
               <SubscriptionForm production={production} />
             </>
@@ -92,14 +127,16 @@ export const ProductionPage = () => {
       </div>
 
       <article className="glass-card">
-        <h2 style={{ marginTop: 0 }}>How notifications work</h2>
-        <ol style={{ lineHeight: 1.8, color: 'var(--text-muted)' }}>
-          <li>We regularly check official availability for standing tickets at {production.theatre}.</li>
-          <li>If standing tickets are released for today&apos;s performance, we notify subscribed customers by email immediately.</li>
-          <li>You complete the purchase on the theatre&apos;s official site — same prices and protections as buying direct.</li>
+        <h2 style={{ marginBottom: '0.75rem' }}>How notifications work</h2>
+        <ol style={{ margin: 0, paddingLeft: '1.25rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+          <li>We poll the official availability for standing tickets at {production.theatre}.</li>
+          <li>
+            If standing tickets are released for today&apos;s performance, subscribed customers are notified
+            immediately by email or Telegram.
+          </li>
+          <li>You buy directly from the theatre&apos;s real checkout — same prices, same protections.</li>
         </ol>
       </article>
     </div>
   );
 };
-

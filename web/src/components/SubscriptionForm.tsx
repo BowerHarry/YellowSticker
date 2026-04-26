@@ -8,7 +8,7 @@ import { createCheckoutSession } from '../lib/api';
 
 const schema = z.object({
   email: z.string().email({ message: 'Enter a valid email' }),
-  phone: z.string().optional(), // Keep for API compatibility but don't show in UI
+  phone: z.string().optional(),
   preference: z.enum(['email', 'telegram', 'both']).default('email'),
   paymentType: z.enum(['subscription', 'one-time']).default('subscription'),
 });
@@ -38,23 +38,21 @@ export const SubscriptionForm = ({ production }: Props) => {
   const preference = watch('preference');
   const paymentType = watch('paymentType');
 
-  // Check if production has less than 1 month remaining
   const now = new Date();
   const endDate = production.end_date ? new Date(production.end_date) : null;
-  const hasLessThanOneMonth = endDate && endDate > now && (endDate.getTime() - now.getTime()) < 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+  const hasLessThanOneMonth =
+    !!(endDate && endDate > now && endDate.getTime() - now.getTime() < 30 * 24 * 60 * 60 * 1000);
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-GB', {
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString('en-GB', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
-  };
 
   const onSubmit = async (values: FormValues) => {
     setSubmitError(null);
-
     const { checkoutUrl, error } = await createCheckoutSession({
       email: values.email,
       phone: undefined,
@@ -63,12 +61,10 @@ export const SubscriptionForm = ({ production }: Props) => {
       productionSlug: production.slug,
       paymentType: values.paymentType,
     });
-
     if (error || !checkoutUrl) {
       setSubmitError(error ?? 'Unable to start checkout right now.');
       return;
     }
-
     window.location.href = checkoutUrl;
   };
 
@@ -76,48 +72,37 @@ export const SubscriptionForm = ({ production }: Props) => {
     <form className="grid" style={{ gap: '1.25rem' }} onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="form-field">
         <label htmlFor="email">Email address</label>
-        <input id="email" type="email" placeholder="you@example.com" {...register('email')} />
+        <input id="email" type="email" placeholder="you@example.com" autoComplete="email" {...register('email')} />
         {errors.email && <span className="input-error">{errors.email.message}</span>}
       </div>
 
       <div className="form-field">
-        <label>Notification method</label>
-        <p style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          If you pick Telegram or both, your confirmation email will include a one-tap link to connect the bot after
-          payment.
+        <label>Notifications</label>
+        <p className="form-field__hint">
+          If you choose Telegram, your confirmation email includes a one-tap link to connect the bot.
         </p>
         <NotificationPreferenceSelector
           value={preference}
-          onChange={(value) => {
-            setValue('preference', value, { shouldValidate: true });
-          }}
+          onChange={(value) => setValue('preference', value, { shouldValidate: true })}
         />
         {errors.preference && <span className="input-error">{errors.preference.message}</span>}
       </div>
 
       <div className="form-field">
-        <label>Payment option</label>
+        <label>Billing</label>
         <div className="payment-type-selector">
           <label className="payment-type-option">
-            <input
-              type="radio"
-              value="subscription"
-              {...register('paymentType')}
-            />
+            <input type="radio" value="subscription" {...register('paymentType')} />
             <div>
-              <strong>Auto-renew monthly</strong>
-              <span className="payment-type-hint">£2/month, renews automatically</span>
+              <strong>Auto-renew</strong>
+              <span className="payment-type-hint">£2 / month, cancel anytime</span>
             </div>
           </label>
           <label className="payment-type-option">
-            <input
-              type="radio"
-              value="one-time"
-              {...register('paymentType')}
-            />
+            <input type="radio" value="one-time" {...register('paymentType')} />
             <div>
-              <strong>One month only</strong>
-              <span className="payment-type-hint">£2 one-time payment</span>
+              <strong>One month</strong>
+              <span className="payment-type-hint">£2 once, no auto-renew</span>
             </div>
           </label>
         </div>
@@ -126,38 +111,34 @@ export const SubscriptionForm = ({ production }: Props) => {
 
       {hasLessThanOneMonth && endDate && (
         <div className="banner banner--warning">
-          <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1rem', fontWeight: 600 }}>
-            ⚠️ Production Ending Soon
-          </h3>
-          <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', lineHeight: 1.6 }}>
-            This production ends on <strong>{formatDate(endDate)}</strong>. Upon the production ending, your subscription will be automatically cancelled on this date. No refund will be provided for any remaining time on your subscription.
+          <h3>Production ending soon</h3>
+          <p>
+            This show ends on <strong>{formatDate(endDate)}</strong>. Your subscription will be cancelled on the
+            production&apos;s end date and no refund is given for unused time.
           </p>
-          <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', lineHeight: 1.6 }}>
-            <strong>However,</strong> as per our guarantee: if no standing tickets have been found since your last payment at the point of cancellation or renewal, you will receive a full refund. You are only charged if we find and alert you of tickets during that period.
+          <p>
+            <strong>Our guarantee still applies.</strong> If we never alert you to standing tickets in your billing period,
+            you get a full refund.
           </p>
           {paymentType === 'subscription' && (
-            <p style={{ margin: 0, fontSize: '0.85rem', lineHeight: 1.6, color: 'rgba(255, 255, 255, 0.8)' }}>
-              <strong>Note for auto-renew subscriptions:</strong> Your subscription will not be cancelled until 1 week after the production end date. However, renewals will not be processed after the production end date—your subscription will be automatically cancelled if a renewal is attempted after the production ends.
+            <p className="muted">
+              Auto-renew note: the subscription stays active up to one week after the run, but no renewals are taken
+              once the show has finished.
             </p>
           )}
         </div>
       )}
 
-      {submitError && (
-        <div className="banner banner--error">
-          {submitError}
-        </div>
-      )}
+      {submitError && <div className="banner banner--error">{submitError}</div>}
 
-      <button type="submit" className="btn btn--full" disabled={isSubmitting}>
-        {isSubmitting 
-          ? 'Preparing checkout…' 
-          : paymentType === 'subscription'
-            ? `Continue (£2/month / ${production.name})`
-            : `Continue (£2 one-time / ${production.name})`
-        }
+      <button type="submit" className="btn btn--full btn--large" disabled={isSubmitting}>
+        {isSubmitting ? 'Preparing checkout…' : 'Continue to checkout'}
+        {!isSubmitting && (
+          <span className="btn__hint">
+            · {paymentType === 'subscription' ? '£2 / month' : '£2 one-off'}
+          </span>
+        )}
       </button>
     </form>
   );
 };
-

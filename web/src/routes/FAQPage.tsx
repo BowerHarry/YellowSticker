@@ -42,106 +42,107 @@ export const FAQPage = () => {
       : 'a daily daytime window (London time)';
 
   return (
-    <div className="grid" style={{ gap: '2rem' }}>
+    <div className="grid" style={{ gap: '1.5rem', maxWidth: '760px', margin: '0 auto' }}>
       <Link to="/" className="back-link">
         ← Back to home
       </Link>
 
-      <article className="glass-card">
-        <h1 style={{ marginTop: 0 }}>Frequently Asked Questions</h1>
+      <div className="glass-card glass-card--accent">
+        <h1 style={{ marginBottom: '0.375rem' }}>Frequently asked</h1>
+        <p className="muted" style={{ margin: 0 }}>
+          Short answers to the questions we get the most.
+        </p>
+      </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      <article className="glass-card">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
           <section>
-            <h2 style={{ marginTop: 0 }}>How does it work?</h2>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Pick a show, subscribe for £2/month, and we email you when same-day standing theatre tickets look
-              available on the official box office site. You buy the tickets yourself — always from the theatre&apos;s
-              real checkout, at the same prices everyone else sees.
+            <h2>How does it work?</h2>
+            <p className="muted">
+              Pick a show, subscribe for £2 a month, and we email or message you on Telegram when same-day standing
+              tickets look available on the official box office. You always buy from the theatre&apos;s real
+              checkout, at the same prices everyone else sees.
             </p>
           </section>
 
           <section>
-            <h2 style={{ marginTop: 0 }}>How much does it cost?</h2>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Each production subscription costs £2 per month. You can set up auto-renewal (subscription) or pay for
-              one month at a time. You only pay for the shows you want to track.
+            <h2>How much does it cost?</h2>
+            <p className="muted">
+              £2 per production per month. You can auto-renew or pay for one month at a time, and you only pay for
+              the shows you actually want to track.
             </p>
           </section>
 
           <section id="refund-guarantee">
-            <h2 style={{ marginTop: 0 }}>Money-back guarantee</h2>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              <strong>No tickets found, no charge:</strong> If no standing tickets have been found since your last
-              payment at the point you cancel or when a subscription renewal is due, you receive a{' '}
-              <strong>full refund</strong> for that period. We only expect you to pay when we have found and alerted you
-              to standing-ticket availability during the billing window you paid for.
+            <h2>Money-back guarantee</h2>
+            <p className="muted">
+              <strong style={{ color: 'var(--text)' }}>No tickets found, no charge.</strong> If no standing tickets
+              have been found since your last payment at the point you cancel or when a renewal is due, you receive a
+              full refund for that period. We only expect you to pay when we&apos;ve actually found and alerted you to
+              standing-ticket availability in the billing window you paid for.
             </p>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
+            <p className="muted">
               Refunds are applied automatically where our records show no ticket finds since your last charge. Use the
-              subscription management link in your emails to cancel or check billing status. If something looks wrong,
-              contact us and we will put it right.
+              management link in any of our emails to cancel or check status. If something looks wrong, reply to any
+              alert and we&apos;ll fix it.
             </p>
           </section>
 
           <section>
-            <h2 style={{ marginTop: 0 }}>What are standing tickets?</h2>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Standing tickets are cheap tickets released on the day of the performance by some theatres. They usually
-              only appear on days when a show is sold out or close to sold out. You&apos;ll stand for the performance
-              (often at the back of the Grand Circle, but sometimes elsewhere) — so comfy shoes help on longer shows.
+            <h2>What are standing tickets?</h2>
+            <p className="muted">
+              Standing tickets are cheap tickets some theatres release on the day of the performance. They tend to
+              appear when a show is sold out or close to it, and you stand for the performance (often at the back of
+              the Grand Circle).
             </p>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              They can be a brilliant way to see some of London&apos;s best productions for great value, but they&apos;re
-              not for everyone — if you need a guaranteed seat, a standard ticket is the better fit.
+            <p className="muted">
+              They&apos;re a brilliant way to see top productions for a fraction of the price — but if you need a
+              guaranteed seat, a regular ticket is the better fit.
             </p>
           </section>
 
           <section>
-            <h2 style={{ marginTop: 0 }}>How often do you check for tickets?</h2>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
+            <h2>How often do you check?</h2>
+            <p className="muted">
               We check the official box office {pollPhrase} during our daily active window ({windowPhrase}). Outside
               that window we pause checks — standing drops are a daytime game, and this keeps things efficient.
             </p>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6', fontSize: '0.9rem' }}>
-              The active window and interval update automatically when our checker&apos;s schedule changes — what you
-              read here always reflects the latest saved schedule.
+            <p className="muted" style={{ fontSize: '0.875rem' }}>
+              The active window and interval update automatically as the schedule changes, so what you read here
+              always reflects the latest saved settings.
             </p>
           </section>
 
           <section>
-            <h2 style={{ marginTop: 0 }}>Can I cancel my subscription?</h2>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Yes, you can cancel anytime. Your subscription will remain active until the end of your current billing
-              period. Use the management link sent to your email to cancel.
+            <h2>Can I cancel anytime?</h2>
+            <p className="muted">
+              Yes. Your subscription stays active until the end of the current billing period. Use the management link
+              in any of our emails to cancel.
             </p>
           </section>
 
           <section>
-            <h2 style={{ marginTop: 0 }}>What happens when a production ends?</h2>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '1rem' }}>
-              When a production ends, your subscription will be automatically cancelled on the production&apos;s end date.
-              No refund will be provided for any remaining time on your subscription.
-            </p>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '1rem' }}>
-              For refunds when no standing tickets were found in a billing period, see our{' '}
-              <a href="#refund-guarantee" style={{ color: 'var(--yellow)', fontWeight: 600 }}>
+            <h2>What happens when a production ends?</h2>
+            <p className="muted">
+              Subscriptions automatically wind down on a production&apos;s end date. No refund is provided for unused
+              time, but our{' '}
+              <Link to="/faq#refund-guarantee" style={{ color: 'var(--yellow)', fontWeight: 600 }}>
                 money-back guarantee
-              </a>
-              .
+              </Link>{' '}
+              still applies for any billing period in which we found no standing tickets.
             </p>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              <strong>For auto-renew subscriptions:</strong> Your subscription will not be cancelled until 1 week after the
-              production end date. However, renewals will not be processed after the production end date—if a renewal is
-              attempted after the production ends, your subscription will be automatically cancelled and any charges will
-              be refunded.
+            <p className="muted">
+              <strong style={{ color: 'var(--text)' }}>Auto-renew note:</strong> the subscription stays active up to
+              one week after the run, but renewals will not be processed after the production has ended. If a renewal
+              is attempted, the subscription is automatically cancelled and any charge is refunded.
             </p>
           </section>
 
           <section>
-            <h2 style={{ marginTop: 0 }}>What if I don&apos;t receive notifications?</h2>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Make sure to check your spam folder. If you&apos;re still not receiving emails, contact us and we&apos;ll
-              help troubleshoot.
+            <h2>I&apos;m not getting notifications</h2>
+            <p className="muted">
+              First, check your spam folder. If you&apos;re still not seeing emails, reply to any of our messages and
+              we&apos;ll help troubleshoot.
             </p>
           </section>
         </div>

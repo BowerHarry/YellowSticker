@@ -7,27 +7,25 @@ type Props = {
 };
 
 const OPTIONS: { value: NotificationPreference; label: string }[] = [
-  { value: 'email', label: 'Email only' },
-  { value: 'telegram', label: 'Telegram only' },
-  { value: 'both', label: 'Email and Telegram' },
+  { value: 'email', label: 'Email' },
+  { value: 'telegram', label: 'Telegram' },
+  { value: 'both', label: 'Both' },
 ];
 
-export const NotificationPreferenceSelector = ({ value, onChange, disabled }: Props) => {
-  return (
-    <div className="preference-group" role="radiogroup" aria-label="Notification method">
-      {OPTIONS.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          role="radio"
-          aria-checked={value === opt.value}
-          disabled={disabled}
-          className={`chip ${value === opt.value ? 'chip--active' : ''}`}
-          onClick={() => onChange(opt.value)}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-};
+export const NotificationPreferenceSelector = ({ value, onChange, disabled }: Props) => (
+  <div className="preference-group" role="radiogroup" aria-label="Notification method">
+    {OPTIONS.map((opt) => (
+      <button
+        key={opt.value}
+        type="button"
+        role="radio"
+        aria-checked={value === opt.value}
+        disabled={disabled}
+        className={`chip ${value === opt.value ? 'chip--active' : ''}`}
+        onClick={() => onChange(opt.value)}
+      >
+        {opt.label}
+      </button>
+    ))}
+  </div>
+);
