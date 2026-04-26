@@ -13,12 +13,12 @@ const howItWorks = [
   {
     number: '2',
     title: 'Subscribe',
-    body: '£2/month per show for instant alerts',
+    body: '£2/month per show for same-day standing-ticket alerts',
   },
   {
     number: '3',
     title: 'Get Notified',
-    body: 'Get alerts when cheap tickets drop',
+    body: 'Get alerts when cheap standing tickets drop',
   },
 ];
 
@@ -47,7 +47,7 @@ export const HomePage = () => {
           </a>
         </div>
         <p className="hero__meta">
-          Just £2/month per show • Text or Email
+          Just £2/month per show • Email alerts today (SMS later)
         </p>
       </section>
 

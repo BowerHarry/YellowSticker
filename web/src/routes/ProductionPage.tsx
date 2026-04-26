@@ -38,13 +38,6 @@ export const ProductionPage = () => {
   const startDate = production.start_date ? new Date(production.start_date) : null;
   const isComingSoon = startDate && startDate > now;
 
-  let scrapingHost = production.scraping_url;
-  try {
-    scrapingHost = new URL(production.scraping_url).hostname;
-  } catch {
-    // keep original string
-  }
-
   return (
     <div className="grid" style={{ gap: '2rem' }}>
       <Link to="/" className="back-link">
@@ -62,7 +55,7 @@ export const ProductionPage = () => {
           </p>
           <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>
             {production.description ??
-              'Standing-room tickets are scarce. We poll the official seating map every few minutes so you never miss a drop.'}
+              'Same-day standing tickets move fast. We watch for availability and email you as soon as we spot seats so you can buy from the official box office.'}
           </p>
 
           <div className="stat-blocks">
@@ -75,11 +68,10 @@ export const ProductionPage = () => {
               <strong>{formatDateTime(production.last_standing_tickets_found_at)}</strong>
             </div>
             <div className="stat-block">
-              <span>Scraper URL</span>
-              <strong style={{ fontSize: '0.8rem', wordBreak: 'break-word' }}>
-                <a href={production.scraping_url} target="_blank" rel="noreferrer">
-                  {scrapingHost}
-                </a>
+              <span>Alert window</span>
+              <strong style={{ fontSize: '0.85rem' }}>
+                {production.start_date ? formatDateTime(production.start_date) : '—'} →{' '}
+                {production.end_date ? formatDateTime(production.end_date) : 'Open-ended'}
               </strong>
             </div>
           </div>
@@ -100,7 +92,7 @@ export const ProductionPage = () => {
           ) : (
             <>
               <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>
-                One alert per show keeps scraping costs low. Cancel anytime with one click.
+                When we find same-day standing tickets for this show, we email you right away with a link to the official box office page.
               </p>
               <SubscriptionForm production={production} />
             </>
@@ -111,9 +103,9 @@ export const ProductionPage = () => {
       <article className="glass-card">
         <h2 style={{ marginTop: 0 }}>How notifications work</h2>
         <ol style={{ lineHeight: 1.8, color: 'var(--text-muted)' }}>
-          <li>Our Supabase Edge Function scrapes {production.theatre} multiple times per hour.</li>
-          <li>Standing tickets appear? We log it and email subscribers instantly.</li>
-          <li>You click the official link and grab the seats before the queue forms.</li>
+          <li>We regularly check official availability for standing tickets at {production.theatre}.</li>
+          <li>If standing tickets are released for today&apos;s performance, we notify subscribed customers by email immediately.</li>
+          <li>You complete the purchase on the theatre&apos;s official site — same prices and protections as buying direct.</li>
         </ol>
       </article>
     </div>

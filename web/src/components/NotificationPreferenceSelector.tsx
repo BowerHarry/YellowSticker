@@ -19,7 +19,9 @@ export const NotificationPreferenceSelector = ({ value, onChange }: Props) => {
       <div className="chip chip--active" style={{ cursor: 'default' }}>
         Email notifications
       </div>
-      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>SMS coming soon</span>
+      <div className="chip chip--disabled" aria-disabled="true" title="SMS alerts are not available yet">
+        SMS (coming soon)
+      </div>
       <input type="hidden" value="email" readOnly />
     </div>
   );

@@ -484,6 +484,15 @@ button {
   border-color: var(--yellow);
 }
 
+.chip--disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(247, 247, 247, 0.45);
+  pointer-events: none;
+}
+
 .payment-type-selector {
   display: flex;
   flex-direction: column;
