@@ -1,5 +1,5 @@
--- Improve invoke_scrape_tickets to better handle the HTTP call with error handling.
--- Secrets must come from database settings only (docs/SECRETS.md).
+-- Ensure invoke_scrape_tickets never relied on revoked or historical in-repo JWT fallbacks.
+-- Applies the same contract as docs/SECRETS.md: app.settings.functions_url and app.settings.service_role_key.
 create or replace function public.invoke_scrape_tickets()
 returns void
 language plpgsql

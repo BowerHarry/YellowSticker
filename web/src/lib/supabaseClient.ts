@@ -1,15 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY;
+/** Prefer `sb_publishable_...`; legacy `anon` JWT still works until you disable it in the dashboard. */
+const supabasePublishableKey =
+  import.meta.env.VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabasePublishableKey) {
   console.warn(
-    'Supabase credentials are missing. Set VITE_PUBLIC_SUPABASE_URL and VITE_PUBLIC_SUPABASE_ANON_KEY in your environment.',
+    'Supabase credentials are missing. Set VITE_PUBLIC_SUPABASE_URL and VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or legacy VITE_PUBLIC_SUPABASE_ANON_KEY).',
   );
 }
 
-export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+export const supabase =
+  supabaseUrl && supabasePublishableKey ? createClient(supabaseUrl, supabasePublishableKey) : null;
 
 /**
  * Get the public URL for a file in Supabase Storage
@@ -36,12 +39,17 @@ export const callSupabaseFunction = async <T>(
     return { error: 'Supabase functions URL is not configured.' };
   }
 
-  // Caller-provided headers win, so callers can override the default anon
-  // Authorization (e.g. basic-auth for admin-only functions).
+  // Caller-provided headers win, so callers can override the default publishable
+  // key (e.g. basic-auth for admin-only functions).
   const incomingHeaders = (init?.headers as Record<string, string> | undefined) ?? {};
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(supabaseAnonKey ? { Authorization: `Bearer ${supabaseAnonKey}` } : {}),
+    ...(supabasePublishableKey
+      ? {
+          apikey: supabasePublishableKey,
+          Authorization: `Bearer ${supabasePublishableKey}`,
+        }
+      : {}),
     ...incomingHeaders,
   };
 

@@ -141,10 +141,13 @@ const simulateAvailable = async (
   // from duplicating ~100 lines here.
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const sharedSecret = Deno.env.get('SCRAPER_SHARED_SECRET');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !sharedSecret || !serviceRoleKey) {
+  const secretKey =
+    Deno.env.get('BACKEND_API_SECRET_KEY') ??
+    Deno.env.get('SERVICE_ROLE_KEY') ??
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !sharedSecret || !secretKey) {
     throw new Error(
-      'SUPABASE_URL, SCRAPER_SHARED_SECRET, or SUPABASE_SERVICE_ROLE_KEY missing — cannot invoke report-scrape.',
+      'SUPABASE_URL, SCRAPER_SHARED_SECRET, or BACKEND_API_SECRET_KEY (or SERVICE_ROLE_KEY / platform SUPABASE_SERVICE_ROLE_KEY) missing — cannot invoke report-scrape.',
     );
   }
 
@@ -152,13 +155,10 @@ const simulateAvailable = async (
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Supabase's edge gateway validates a JWT on every function call
-      // before your Deno code runs. Server-to-server invocations must
-      // therefore include Authorization — the scraper secret alone is not
-      // enough. Service role is already available in this function's env
-      // (same as adminClient); report-scrape still enforces X-Scraper-Secret.
-      Authorization: `Bearer ${serviceRoleKey}`,
-      apikey: serviceRoleKey,
+      // Server-to-server call: publishable/secret keys use apikey + Bearer
+      // (see Supabase API keys docs). report-scrape still enforces X-Scraper-Secret.
+      Authorization: `Bearer ${secretKey}`,
+      apikey: secretKey,
       'X-Scraper-Secret': sharedSecret,
     },
     body: JSON.stringify({

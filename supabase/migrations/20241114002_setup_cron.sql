@@ -5,34 +5,41 @@ create extension if not exists "pg_net";
 -- Note: pg_cron and pg_net must be enabled by Supabase support or via dashboard
 -- If this migration fails, enable them manually in Supabase Dashboard → Database → Extensions
 
--- Function to call the scrape-tickets edge function
+-- Function to call the scrape-tickets edge function.
+-- Requires database settings (never commit secrets to the repo):
+--   app.settings.functions_url   e.g. https://<project-ref>.supabase.co/functions/v1/scrape-tickets
+--   app.settings.service_role_key  secret key (sb_secret_…) or legacy service_role JWT
+-- See docs/SECRETS.md
 create or replace function public.invoke_scrape_tickets()
 returns void
 language plpgsql
 security definer
+set search_path = public
 as $$
 declare
   function_url text;
   service_role_key text;
 begin
-  -- Get the function URL (replace with your actual project URL)
-  function_url := current_setting('app.settings.functions_url', true);
-  
-  -- Get service role key from secrets (set via Supabase Dashboard → Settings → API)
-  service_role_key := current_setting('app.settings.service_role_key', true);
-  
-  -- If not set, use environment variable approach
+  function_url := nullif(trim(coalesce(current_setting('app.settings.functions_url', true), '')), '');
+  service_role_key := nullif(trim(coalesce(current_setting('app.settings.service_role_key', true), '')), '');
+
   if function_url is null then
-    function_url := 'https://chdluifdihnezhvsjaaj.supabase.co/functions/v1/scrape-tickets';
+    raise exception
+      'app.settings.functions_url is not set. Configure it in the Supabase SQL editor (see docs/SECRETS.md).';
   end if;
-  
-  -- Make HTTP request to edge function
+
+  if service_role_key is null then
+    raise exception
+      'app.settings.service_role_key is not set. Configure it in the Supabase SQL editor (see docs/SECRETS.md).';
+  end if;
+
   perform
     net.http_post(
       url := function_url,
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || coalesce(service_role_key, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoZGx1aWZkaWhuZXpodnNqYWFqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzE0OTI0MywiZXhwIjoyMDc4NzI1MjQzfQ.2mzrFUHm6JZxCrS44hcx1nVvzEYv20TTMmnPOiaFZ4A')
+        'apikey', service_role_key,
+        'Authorization', 'Bearer ' || service_role_key
       )
     );
 end;
@@ -68,4 +75,3 @@ select cron.schedule(
 
 -- To unschedule:
 -- select cron.unschedule('scrape-tickets');
-

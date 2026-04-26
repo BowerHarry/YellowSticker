@@ -1,5 +1,9 @@
 project_id = "yellow-sticker"
 
+# All functions use verify_jwt = false so callers can authenticate with the
+# new publishable / secret API keys (sb_*) as well as legacy JWT api keys.
+# See https://supabase.com/docs/guides/api/api-keys
+
 [functions."create-checkout-session"]
 verify_jwt = false
 

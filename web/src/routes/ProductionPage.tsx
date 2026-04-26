@@ -50,9 +50,7 @@ export const ProductionPage = () => {
             £2 per month
           </p>
           <h1 style={{ margin: '0.35rem 0' }}>{production.name}</h1>
-          <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>
-            {production.theatre}{production.city ? `, ${production.city}` : ''}
-          </p>
+          <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>{production.theatre}</p>
           <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>
             {production.description ??
               'Same-day standing theatre tickets move fast. We watch for availability and email you as soon as we spot seats so you can buy from the official box office.'}

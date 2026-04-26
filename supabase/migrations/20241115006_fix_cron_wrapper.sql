@@ -47,25 +47,25 @@ create or replace function public.invoke_scrape_tickets()
 returns void
 language plpgsql
 security definer
+set search_path = public
 as $$
 declare
   function_url text;
   service_role_key text;
   request_id bigint;
 begin
-  -- Get the function URL
-  function_url := current_setting('app.settings.functions_url', true);
-  
-  -- Get service role key from secrets
-  service_role_key := current_setting('app.settings.service_role_key', true);
-  
-  -- If not set, use hardcoded values (fallback)
+  -- Get URL and service_role JWT from database settings only (docs/SECRETS.md)
+  function_url := nullif(trim(coalesce(current_setting('app.settings.functions_url', true), '')), '');
+  service_role_key := nullif(trim(coalesce(current_setting('app.settings.service_role_key', true), '')), '');
+
   if function_url is null then
-    function_url := 'https://chdluifdihnezhvsjaaj.supabase.co/functions/v1/scrape-tickets';
+    raise exception
+      'app.settings.functions_url is not set (see docs/SECRETS.md).';
   end if;
-  
+
   if service_role_key is null then
-    service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoZGx1aWZkaWhuZXpodnNqYWFqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzE0OTI0MywiZXhwIjoyMDc4NzI1MjQzfQ.2mzrFUHm6JZxCrS44hcx1nVvzEYv20TTMmnPOiaFZ4A';
+    raise exception
+      'app.settings.service_role_key is not set (see docs/SECRETS.md).';
   end if;
   
   -- Make HTTP request to edge function
@@ -75,6 +75,7 @@ begin
       url := function_url,
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
+        'apikey', service_role_key,
         'Authorization', 'Bearer ' || service_role_key
       )
     ) into request_id;

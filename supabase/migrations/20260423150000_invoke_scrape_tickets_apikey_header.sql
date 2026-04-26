@@ -1,5 +1,5 @@
--- Improve invoke_scrape_tickets to better handle the HTTP call with error handling.
--- Secrets must come from database settings only (docs/SECRETS.md).
+-- New Supabase secret keys (`sb_secret_...`) expect both `apikey` and `Authorization`
+-- on edge function requests (see Supabase API keys docs).
 create or replace function public.invoke_scrape_tickets()
 returns void
 language plpgsql

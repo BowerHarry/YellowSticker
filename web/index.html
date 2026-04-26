@@ -2,12 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- ICO/PNG before SVG: Safari tab icons are unreliable with SVG-only. -->
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="icon" type="image/svg+xml" href="/yellow-sticker.svg" />
+    <!-- Inlined 32×32 PNG so the tab icon still loads if /favicon.ico is swallowed by an SPA rewrite. -->
+    <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABmUlEQVR4nO2XTShEURSAv3eNnzDFwsJYkGQ3U5KSFKFISNKzMiuRLIymUIqNYlJErCQrKUqsFGLlZyNkQxFZSFJqkoUZQzwTZYan3o/F+zbv3XdPfefec+6rCyYjRZt4OeZFU5EzskvSW/xbIsJIeSSHMFIeySUwGWH06sOEnQKTEVYCWCVQQU0HxOXB6eXnt2I3pBbBzR3MLEFOtRKTUQ6dwxAIatiEU30Qa4MunzJeXIPtAxjywL0fWgbAXQf+PSV2Yg6m5tUlYFMTlOmAgXboGYOlDegZhUIXtDbC7pESk2KHhHioL3s/46qR1P6Igs+QL8PJBYRCsL8ArlzlvcEDK1tQWgDNtSBXQnKiCrkTSfUpsMXAeC88BaBNVuRvCAHLE7A+DVkO8I5AdhXsHOpwDLMyPp6O73MVhTA7COerSlL9kzokEInJeRAuWN5UdufsCh4eIT0N7ZrwJ9qb4PoWPD6QvWBPgpoSGOtG2ybUgz81oV4IKwGsEhD90qAnYaf4NyWQDNyFry4RbcII+fs4WqBRl1PTeQWOfG+sc59dIQAAAABJRU5ErkJggg==" />
+    <link rel="shortcut icon" href="/favicon.ico?v=4" type="image/x-icon" />
+    <link rel="icon" href="/favicon.ico?v=4" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=4" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png?v=4" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=4" />
+    <link rel="icon" type="image/svg+xml" href="/yellow-sticker.svg?v=4" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Yellow Sticker — Discount Theatre Alerts</title>
   </head>
@@ -16,4 +18,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

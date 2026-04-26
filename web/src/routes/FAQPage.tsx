@@ -68,6 +68,21 @@ export const FAQPage = () => {
             </p>
           </section>
 
+          <section id="refund-guarantee">
+            <h2 style={{ marginTop: 0 }}>Money-back guarantee</h2>
+            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
+              <strong>No tickets found, no charge:</strong> If no standing tickets have been found since your last
+              payment at the point you cancel or when a subscription renewal is due, you receive a{' '}
+              <strong>full refund</strong> for that period. We only expect you to pay when we have found and alerted you
+              to standing-ticket availability during the billing window you paid for.
+            </p>
+            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
+              Refunds are applied automatically where our records show no ticket finds since your last charge. Use the
+              subscription management link in your emails to cancel or check billing status. If something looks wrong,
+              contact us and we will put it right.
+            </p>
+          </section>
+
           <section>
             <h2 style={{ marginTop: 0 }}>What are standing tickets?</h2>
             <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
@@ -107,13 +122,12 @@ export const FAQPage = () => {
               When a production ends, your subscription will be automatically cancelled on the production&apos;s end date.
               No refund will be provided for any remaining time on your subscription.
             </p>
-            <p
-              id="refund-guarantee"
-              style={{ color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '1rem' }}
-            >
-              <strong>However, as per our guarantee:</strong> If no standing tickets have been found since your last
-              payment at the point of cancellation or renewal, you will receive a full refund. You are only charged if
-              we find and alert you of tickets during that period.
+            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '1rem' }}>
+              For refunds when no standing tickets were found in a billing period, see our{' '}
+              <a href="#refund-guarantee" style={{ color: 'var(--yellow)', fontWeight: 600 }}>
+                money-back guarantee
+              </a>
+              .
             </p>
             <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
               <strong>For auto-renew subscriptions:</strong> Your subscription will not be cancelled until 1 week after the

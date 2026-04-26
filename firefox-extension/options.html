@@ -78,9 +78,12 @@
           <div class="hint">From Supabase project settings → API → Project URL.</div>
         </label>
         <label>
-          <span>Anon key</span>
+          <span>Publishable key</span>
           <input type="password" name="supabaseAnonKey" required />
-          <div class="hint">Only used for the read-only productions query.</div>
+          <div class="hint">
+            Supabase Dashboard → Settings → API Keys → <strong>Publishable</strong> (<code>sb_publishable_…</code>).
+            Legacy <code>anon</code> JWT still works until you disable it. Never paste the <code>service_role</code> / secret key here.
+          </div>
         </label>
         <label>
           <span>Scraper shared secret</span>

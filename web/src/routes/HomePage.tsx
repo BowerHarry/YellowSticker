@@ -32,9 +32,6 @@ export const HomePage = () => {
       <section className="hero">
         <div className="hero__label">Standing theatre tickets today</div>
         <h1 className="hero__title">Yellow Sticker Alerts</h1>
-        <h2 className="hero__subheader">
-          Never miss discounted standing tickets for London's hottest West End shows.
-        </h2>
         <p className="hero__text">
           Get instant notifications when same-day standing theatre tickets drop for your favourite productions.
         </p>
@@ -49,33 +46,35 @@ export const HomePage = () => {
         <p className="hero__meta">
           Just £2/month per show • Email ticket alerts
         </p>
-        <div className="hero-guarantee">
-          <Link
-            to="/faq#refund-guarantee"
-            className="hero-guarantee__link"
-            aria-label="Money-back guarantee: read full terms on the FAQ page"
-          >
-            <span className="hero-guarantee__badge">Money-back</span>
-            <span className="hero-guarantee__text">No standing tickets found since your last payment? Full refund — details</span>
-            <span className="hero-guarantee__chev" aria-hidden="true">
-              →
-            </span>
-          </Link>
-        </div>
       </section>
 
       <section className="home-section">
-        <div className="how-it-works">
-          {howItWorks.map((card, index) => (
-            <div key={card.title} className="how-it-works__item">
-              <div className="how-it-works__number">{card.number}</div>
-              <div className="how-it-works__content">
-                <h3 className="how-it-works__title">{card.title}</h3>
-                <p className="how-it-works__body">{card.body}</p>
+        <div className="how-it-works-wrap">
+          <div className="how-it-works">
+            {howItWorks.map((card, index) => (
+              <div key={card.title} className="how-it-works__item">
+                <div className="how-it-works__number">{card.number}</div>
+                <div className="how-it-works__content">
+                  <h3 className="how-it-works__title">{card.title}</h3>
+                  <p className="how-it-works__body">{card.body}</p>
+                </div>
+                {index < howItWorks.length - 1 && <div className="how-it-works__connector" />}
               </div>
-              {index < howItWorks.length - 1 && <div className="how-it-works__connector" />}
-            </div>
-          ))}
+            ))}
+          </div>
+          <Link
+            to="/faq#refund-guarantee"
+            className="timeline-guarantee"
+            aria-label="Money-back guarantee: read full terms on the FAQ page"
+          >
+            <span className="timeline-guarantee__badge">Money-back</span>
+            <span className="timeline-guarantee__text">
+              No standing tickets found since your last payment? Full refund — details
+            </span>
+            <span className="timeline-guarantee__chev" aria-hidden="true">
+              →
+            </span>
+          </Link>
         </div>
       </section>
 

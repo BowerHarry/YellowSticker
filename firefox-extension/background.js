@@ -29,7 +29,7 @@ const EXTENSION_VERSION = '1.0.0';
 // --- Config / storage ------------------------------------------------------
 //
 // Settings are user-editable via the options page. Defaults are conservative;
-// the options page enforces that supabaseUrl / supabaseAnonKey / scraperSecret
+// the options page enforces that supabaseUrl / supabaseAnonKey (publishable) / scraperSecret
 // are all set before enabling the scheduler.
 const DEFAULTS = {
   supabaseUrl: '',
@@ -413,7 +413,7 @@ const listActiveProductions = async (settings) => {
 // Snapshot of the scheduler settings that are meaningful server-side (the
 // monitor dashboard needs them to decide "is the extension online or just
 // paused outside its active window?"). We deliberately do NOT send
-// credentials (supabaseAnonKey, scraperSecret) — those stay client-side.
+// credentials (publishable key in supabaseAnonKey, scraperSecret) — client-side only.
 const schedulerSettingsFor = (settings) => ({
   pollMinutes: Number(settings.pollMinutes) || DEFAULTS.pollMinutes,
   activeHoursStart: Number(settings.activeHoursStart) ?? DEFAULTS.activeHoursStart,
