@@ -20,7 +20,6 @@
 
 html {
   scroll-behavior: smooth;
-  overflow-x: clip;
 }
 
 *,
@@ -34,7 +33,6 @@ body {
   min-height: 100vh;
   background-color: var(--black);
   color: var(--text);
-  overflow-x: clip;
 }
 
 a {
@@ -245,6 +243,7 @@ button {
   align-items: center;
   gap: 0.5rem;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
   margin-top: 1.25rem;
   padding: 0.5rem 0.85rem;
@@ -254,7 +253,6 @@ button {
   font-size: clamp(0.65rem, 1.35vw, 0.82rem);
   font-weight: 600;
   line-height: 1.25;
-  white-space: nowrap;
   overflow: hidden;
   background: linear-gradient(90deg, #7f1d1d 0%, #b91c1c 50%, #991b1b 100%);
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -286,7 +284,6 @@ button {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .timeline-guarantee__chev {
@@ -845,6 +842,17 @@ button {
   .tabs {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .timeline-guarantee {
+    align-items: flex-start;
+    white-space: normal;
+    overflow: visible;
+  }
+
+  .timeline-guarantee__text {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 
