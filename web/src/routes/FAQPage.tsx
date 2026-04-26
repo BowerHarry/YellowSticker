@@ -107,7 +107,10 @@ export const FAQPage = () => {
               When a production ends, your subscription will be automatically cancelled on the production&apos;s end date.
               No refund will be provided for any remaining time on your subscription.
             </p>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '1rem' }}>
+            <p
+              id="refund-guarantee"
+              style={{ color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '1rem' }}
+            >
               <strong>However, as per our guarantee:</strong> If no standing tickets have been found since your last
               payment at the point of cancellation or renewal, you will receive a full refund. You are only charged if
               we find and alert you of tickets during that period.

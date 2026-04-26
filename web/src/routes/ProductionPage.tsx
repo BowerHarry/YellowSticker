@@ -67,13 +67,6 @@ export const ProductionPage = () => {
               <span>Last found</span>
               <strong>{formatDateTime(production.last_standing_tickets_found_at)}</strong>
             </div>
-            <div className="stat-block">
-              <span>Alert window</span>
-              <strong style={{ fontSize: '0.85rem' }}>
-                {production.start_date ? formatDateTime(production.start_date) : '—'} →{' '}
-                {production.end_date ? formatDateTime(production.end_date) : 'Open-ended'}
-              </strong>
-            </div>
           </div>
         </article>
 

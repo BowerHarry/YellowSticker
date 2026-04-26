@@ -47,9 +47,20 @@ export const HomePage = () => {
           </a>
         </div>
         <p className="hero__meta">
-          Just £2/month per show • Email alerts today (SMS later)
+          Just £2/month per show • Email ticket alerts
         </p>
       </section>
+
+      <Link to="/faq#refund-guarantee" className="home-guarantee">
+        <div className="home-guarantee__slant" aria-hidden="true" />
+        <div className="home-guarantee__inner">
+          <span className="home-guarantee__badge">Our guarantee</span>
+          <p className="home-guarantee__text">
+            <strong>No tickets found, no charge:</strong> if no standing tickets have been found since your last payment
+            at the point of cancellation or renewal, you get a <strong>full refund</strong>. Tap for details →
+          </p>
+        </div>
+      </Link>
 
       <section className="home-section">
         <div className="how-it-works">
