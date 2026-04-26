@@ -1,5 +1,6 @@
 import { adminClient } from '../_shared/db.ts';
 import { accountAccessEmail, sendEmail } from '../_shared/emails.ts';
+import { mintTelegramLinkToken, telegramBotStartUrl } from '../_shared/telegram.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -85,7 +86,21 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true });
     }
 
-    const { subject, html } = accountAccessEmail(entries);
+    let telegramConnectUrl: string | null = null;
+    const pref = (user.notification_preference as string) ?? 'email';
+    const chatId = user.telegram_chat_id as number | null | undefined;
+    if ((pref === 'telegram' || pref === 'both') && chatId == null) {
+      const linkToken = mintTelegramLinkToken();
+      const { error: tokErr } = await adminClient
+        .from('users')
+        .update({ telegram_link_token: linkToken })
+        .eq('id', user.id);
+      if (!tokErr) {
+        telegramConnectUrl = telegramBotStartUrl(linkToken);
+      }
+    }
+
+    const { subject, html } = accountAccessEmail(entries, { telegramConnectUrl });
     const messageId = await sendEmail({ to: email, subject, html });
 
     if (messageId) {

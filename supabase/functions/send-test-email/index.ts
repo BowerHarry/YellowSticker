@@ -72,6 +72,7 @@ const stubSub = {
   currentPeriodEnd: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
   amountPence: 200,
   managementToken: '00000000-0000-0000-0000-000000000000',
+  telegramConnectUrl: 'https://t.me/YellowStickerBot?start=demo_link_token_stub',
 };
 
 const render = (template: Template) => {
@@ -79,7 +80,11 @@ const render = (template: Template) => {
     case 'signup-subscription':
       return signupEmail(stubProduction, stubSub);
     case 'signup-one-time':
-      return signupEmail(stubProduction, { ...stubSub, paymentType: 'one-time' });
+      return signupEmail(stubProduction, {
+        ...stubSub,
+        paymentType: 'one-time',
+        telegramConnectUrl: 'https://t.me/YellowStickerBot?start=demo_one_time_stub',
+      });
     case 'renewal':
       return renewalEmail(stubProduction, stubSub);
     case 'cancel-refund':

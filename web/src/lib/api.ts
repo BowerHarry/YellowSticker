@@ -415,21 +415,6 @@ export const updateNotificationPreference = async (
   return { ok: data?.success ?? true };
 };
 
-export const requestTelegramLink = async (
-  token: string,
-): Promise<{ telegramUrl?: string; error?: string }> => {
-  const { data, error } = await callSupabaseFunction<{ success: boolean; telegramUrl?: string }>(
-    'subscription-management',
-    {
-      method: 'POST',
-      body: JSON.stringify({ action: 'telegram_link' }),
-      params: { token },
-    },
-  );
-  if (error) return { error };
-  return { telegramUrl: data?.telegramUrl };
-};
-
 export const cancelSubscription = async (
   token: string,
   options?: { cancelMode?: 'refund_now' | 'period_end' },

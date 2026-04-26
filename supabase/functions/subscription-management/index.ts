@@ -5,7 +5,8 @@
 //   POST ?token=…  → one of:
 //     { action: 'cancel', cancelMode?: 'refund_now' | 'period_end' }
 //     { action: 'update_preference', preference: 'email'|'telegram'|'both' }
-//     { action: 'telegram_link' } → { telegramUrl } deep-link to the bot
+//   Telegram deep links are minted in lifecycle emails (stripe-webhook,
+//   request-manage-link), not from this endpoint.
 //
 // Cancel: if the refund guarantee applies, refund the last PaymentIntent
 // and cancel immediately when requested; otherwise schedule cancel at
@@ -427,26 +428,6 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: 'Failed to update preference' }, 500);
         }
         return jsonResponse({ success: true });
-      }
-
-      if (action === 'telegram_link') {
-        const botUsername = Deno.env.get('TELEGRAM_BOT_USERNAME');
-        if (!botUsername?.trim()) {
-          return jsonResponse({ error: 'Telegram bot username not configured' }, 503);
-        }
-        const bytes = new Uint8Array(32);
-        crypto.getRandomValues(bytes);
-        const linkToken = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-        const { error: tokErr } = await adminClient
-          .from('users')
-          .update({ telegram_link_token: linkToken })
-          .eq('id', sub.user_id);
-        if (tokErr) {
-          console.error(tokErr);
-          return jsonResponse({ error: 'Failed to create link' }, 500);
-        }
-        const telegramUrl = `https://t.me/${botUsername.trim()}?start=${linkToken}`;
-        return jsonResponse({ success: true, telegramUrl });
       }
 
       if (action === 'cancel') {

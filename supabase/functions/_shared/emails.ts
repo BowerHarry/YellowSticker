@@ -100,9 +100,22 @@ export type SubscriptionInfo = {
   currentPeriodEnd?: string | null;
   amountPence?: number | null;
   managementToken?: string | null;
+  /** Present when the user should open Telegram once to link alerts (signup / renewal / magic link). */
+  telegramConnectUrl?: string | null;
 };
 
 type TemplateOutput = { subject: string; html: string };
+
+const telegramConnectSection = (url: string): string => `
+  <div style="padding:18px;background:#fefce8;border-radius:10px;margin:20px 0;border:1px solid rgba(234,179,8,0.45);">
+    <p style="margin:0 0 8px 0;font-weight:700;color:#713f12;font-size:16px;">Connect Telegram for drop alerts</p>
+    <p style="margin:0 0 14px 0;font-size:14px;color:#422006;line-height:1.55;">
+      Open the link on the device where you use Telegram, then tap <strong>Start</strong>. You only need to do this once per account.
+    </p>
+    <a href="${escapeHtml(url)}" style="display:inline-block;padding:10px 18px;background:#24A1DE;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Open Telegram and connect</a>
+    <p style="margin:14px 0 0 0;font-size:12px;color:#667085;line-height:1.45;">If the button does not work, copy this link into your browser:<br><span style="word-break:break-all;">${escapeHtml(url)}</span></p>
+  </div>
+`;
 
 export const signupEmail = (
   production: ProductionInfo,
@@ -115,10 +128,15 @@ export const signupEmail = (
     sub.paymentType === 'subscription'
       ? `<p>We'll charge ${escapeHtml(formatGbp(sub.amountPence))} every month until you cancel or the production ends. Renewals stop automatically once the production finishes.</p>`
       : `<p>You've paid ${escapeHtml(formatGbp(sub.amountPence))} for one month of alerts. No auto-renew.</p>`;
+  const tg =
+    sub.telegramConnectUrl && sub.telegramConnectUrl.trim().length > 0
+      ? telegramConnectSection(sub.telegramConnectUrl.trim())
+      : '';
   const body = `
     <p>You're now subscribed to standing-ticket alerts for <strong>${escapeHtml(production.name)}</strong> at ${escapeHtml(production.theatre)}${production.city ? `, ${escapeHtml(production.city)}` : ''}.</p>
     ${renewBlurb}
     <p>Current period: <strong>${escapeHtml(formatDate(sub.currentPeriodStart ?? null))}</strong> → <strong>${escapeHtml(formatDate(sub.currentPeriodEnd ?? null))}</strong>.</p>
+    ${tg}
     ${endNote}
     ${guaranteeHtml}
   `;
@@ -132,9 +150,14 @@ export const renewalEmail = (
   production: ProductionInfo,
   sub: SubscriptionInfo,
 ): TemplateOutput => {
+  const tg =
+    sub.telegramConnectUrl && sub.telegramConnectUrl.trim().length > 0
+      ? telegramConnectSection(sub.telegramConnectUrl.trim())
+      : '';
   const body = `
     <p>We just renewed your alert subscription for <strong>${escapeHtml(production.name)}</strong>.</p>
     <p>Charged ${escapeHtml(formatGbp(sub.amountPence))} for the period <strong>${escapeHtml(formatDate(sub.currentPeriodStart ?? null))}</strong> → <strong>${escapeHtml(formatDate(sub.currentPeriodEnd ?? null))}</strong>.</p>
+    ${tg}
     ${guaranteeHtml}
   `;
   return {
@@ -278,11 +301,16 @@ export const accountAccessEmail = (
     isActive: boolean;
     subscriptionEnd?: string | null;
   }>,
+  options?: { telegramConnectUrl?: string | null },
 ): TemplateOutput => {
   const intro =
     entries.length === 1
       ? `<p>Use the secure link below to manage your Yellow Sticker subscription.</p>`
       : `<p>Use the secure links below to manage your Yellow Sticker subscriptions.</p>`;
+  const tg =
+    options?.telegramConnectUrl && options.telegramConnectUrl.trim().length > 0
+      ? telegramConnectSection(options.telegramConnectUrl.trim())
+      : '';
   const rows = entries
     .map((entry) => {
       const href = manageLink(entry.managementToken) ?? siteUrl();
@@ -308,6 +336,7 @@ export const accountAccessEmail = (
     .join('');
   const body = `
     ${intro}
+    ${tg}
     <p style="font-size: 13px; color: #667085;">If you didn't request this email, you can safely ignore it.</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 12px;">
       ${rows}

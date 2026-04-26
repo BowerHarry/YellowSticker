@@ -4,6 +4,20 @@
 
 const botToken = () => Deno.env.get('TELEGRAM_BOT_TOKEN');
 
+/** Opaque token stored on `users.telegram_link_token` until the user opens `t.me/...?start=`. */
+export const mintTelegramLinkToken = (): string => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+/** Deep link for the user to start the bot with a link token (requires `TELEGRAM_BOT_USERNAME`). */
+export const telegramBotStartUrl = (linkToken: string): string | null => {
+  const botUsername = Deno.env.get('TELEGRAM_BOT_USERNAME')?.trim();
+  if (!botUsername) return null;
+  return `https://t.me/${botUsername}?start=${linkToken}`;
+};
+
 export const sendTelegramHtml = async (
   chatId: string | number,
   html: string,

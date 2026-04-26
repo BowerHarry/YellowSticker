@@ -28,6 +28,7 @@ import {
   signupEmail,
   stripeMode,
 } from '../_shared/emails.ts';
+import { mintTelegramLinkToken, telegramBotStartUrl } from '../_shared/telegram.ts';
 
 const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
 const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
@@ -290,6 +291,23 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
 
   try {
     if (production && user.email) {
+      const prefForAlerts =
+        metaPref === 'email' || metaPref === 'telegram' || metaPref === 'both'
+          ? metaPref
+          : ((user as UserRecord).notification_preference ?? 'email');
+
+      let telegramConnectUrl: string | null = null;
+      if (prefForAlerts === 'telegram' || prefForAlerts === 'both') {
+        const linkToken = mintTelegramLinkToken();
+        const { error: tokErr } = await adminClient
+          .from('users')
+          .update({ telegram_link_token: linkToken })
+          .eq('id', actualUserId);
+        if (!tokErr) {
+          telegramConnectUrl = telegramBotStartUrl(linkToken);
+        }
+      }
+
       const { subject, html } = signupEmail(
         {
           name: (production as ProductionRecord).name,
@@ -304,6 +322,7 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
           currentPeriodEnd: currentPeriodEnd.toISOString(),
           amountPence: lastChargeAmountPence,
           managementToken: subscription.management_token,
+          telegramConnectUrl,
         },
       );
       const messageId = await sendEmail({ to: user.email, subject, html });
@@ -451,6 +470,21 @@ const handleRenewalOrPostEnd = async (invoice: Stripe.Invoice) => {
   }
 
   if (isRenewal && user?.email && production) {
+    let telegramConnectUrl: string | null = null;
+    const u = user as UserRecord;
+    const pref = u.notification_preference;
+    const chatId = u.telegram_chat_id;
+    if ((pref === 'telegram' || pref === 'both') && chatId == null) {
+      const linkToken = mintTelegramLinkToken();
+      const { error: tokErr } = await adminClient
+        .from('users')
+        .update({ telegram_link_token: linkToken })
+        .eq('id', userId);
+      if (!tokErr) {
+        telegramConnectUrl = telegramBotStartUrl(linkToken);
+      }
+    }
+
     const { subject, html } = renewalEmail(
       {
         name: (production as ProductionRecord).name,
@@ -465,6 +499,7 @@ const handleRenewalOrPostEnd = async (invoice: Stripe.Invoice) => {
         currentPeriodEnd: currentPeriodEnd.toISOString(),
         amountPence: invoice.amount_paid ?? null,
         managementToken: dbSub?.management_token ?? null,
+        telegramConnectUrl,
       },
     );
     const messageId = await sendEmail({ to: user.email, subject, html });

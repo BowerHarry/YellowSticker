@@ -83,7 +83,8 @@ export const SubscriptionForm = ({ production }: Props) => {
       <div className="form-field">
         <label>Notification method</label>
         <p style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          For Telegram-only or both, you will connect the bot from your subscription management page after checkout.
+          If you pick Telegram or both, your confirmation email will include a one-tap link to connect the bot after
+          payment.
         </p>
         <NotificationPreferenceSelector
           value={preference}
