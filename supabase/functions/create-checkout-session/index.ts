@@ -9,7 +9,7 @@
 // edge function deployment is talking to.
 import Stripe from 'npm:stripe';
 import { adminClient } from '../_shared/db.ts';
-import type { SubscriptionPayload } from '../_shared/types.ts';
+import type { NotificationPreference, SubscriptionPayload } from '../_shared/types.ts';
 import { priceGbpPence, stripeMode, siteUrl } from '../_shared/emails.ts';
 
 const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
@@ -36,6 +36,11 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 
+const normalizeNotificationPreference = (raw: unknown): NotificationPreference => {
+  if (raw === 'telegram' || raw === 'both' || raw === 'email') return raw;
+  return 'email';
+};
+
 const ensureUser = async (payload: SubscriptionPayload) => {
   const { data: existingUser } = await adminClient
     .from('users')
@@ -48,7 +53,6 @@ const ensureUser = async (payload: SubscriptionPayload) => {
       .from('users')
       .update({
         phone: payload.phone ?? existingUser.phone,
-        notification_preference: payload.preference,
       })
       .eq('id', existingUser.id);
     return existingUser;
@@ -59,7 +63,6 @@ const ensureUser = async (payload: SubscriptionPayload) => {
     .insert({
       email: payload.email.toLowerCase(),
       phone: payload.phone,
-      notification_preference: payload.preference,
     })
     .select('*')
     .single();
@@ -83,6 +86,8 @@ Deno.serve(async (req) => {
     }
 
     const paymentType = payload.paymentType || 'subscription';
+    const preference = normalizeNotificationPreference(payload.preference);
+    const payloadWithPreference: SubscriptionPayload = { ...payload, preference };
 
     const { data: production, error: productionError } = await adminClient
       .from('productions')
@@ -107,7 +112,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const user = await ensureUser(payload);
+    const user = await ensureUser(payloadWithPreference);
 
     const { data: existingSubscription } = await adminClient
       .from('subscriptions')
@@ -130,7 +135,7 @@ Deno.serve(async (req) => {
       user_id: user.id,
       production_id: production.id,
       payment_type: paymentType,
-      notification_preference: payload.preference,
+      notification_preference: preference,
     };
 
     const productDescription =
@@ -203,6 +208,7 @@ Deno.serve(async (req) => {
           cancellation_reason: null,
           stripe_session_id: session.id,
           is_test_mode: isTestMode,
+          notification_preference: preference,
         })
         .eq('id', existingSubscription.id);
     } else {
@@ -213,6 +219,7 @@ Deno.serve(async (req) => {
         payment_type: paymentType,
         stripe_session_id: session.id,
         is_test_mode: isTestMode,
+        notification_preference: preference,
       });
     }
 

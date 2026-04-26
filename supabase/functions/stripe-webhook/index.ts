@@ -78,7 +78,6 @@ const ensureUserExists = async (userId: string, email: string) => {
     .insert({
       id: userId,
       email: email.toLowerCase(),
-      notification_preference: 'email',
     })
     .select('*')
     .single();
@@ -149,9 +148,11 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
   const user = await ensureUserExists(userId, email);
   const actualUserId = user.id;
 
-  const metaPref = session.metadata?.notification_preference;
-  if (metaPref === 'email' || metaPref === 'telegram' || metaPref === 'both') {
-    await adminClient.from('users').update({ notification_preference: metaPref }).eq('id', actualUserId);
+  /** Checkout Session metadata is canonical; fall back to Subscription metadata (subscription_data.metadata). */
+  let resolvedNotificationPref: 'email' | 'telegram' | 'both' | null = null;
+  const sessionPref = session.metadata?.notification_preference;
+  if (sessionPref === 'email' || sessionPref === 'telegram' || sessionPref === 'both') {
+    resolvedNotificationPref = sessionPref;
   }
 
   const now = new Date();
@@ -171,14 +172,20 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
       typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
     stripeSubscriptionId = subscriptionId;
     try {
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+      const stripeSub = await stripe.subscriptions.retrieve(subscriptionId, {
         expand: ['latest_invoice.payment_intent'],
       });
-      currentPeriodStart = new Date(subscription.current_period_start * 1000);
-      currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+      if (!resolvedNotificationPref) {
+        const subPref = stripeSub.metadata?.notification_preference;
+        if (subPref === 'email' || subPref === 'telegram' || subPref === 'both') {
+          resolvedNotificationPref = subPref;
+        }
+      }
+      currentPeriodStart = new Date(stripeSub.current_period_start * 1000);
+      currentPeriodEnd = new Date(stripeSub.current_period_end * 1000);
       stripeCustomerId =
-        typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
-      const invoice = subscription.latest_invoice as Stripe.Invoice | null;
+        typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id;
+      const invoice = stripeSub.latest_invoice as Stripe.Invoice | null;
       const intent = invoice?.payment_intent as Stripe.PaymentIntent | string | null | undefined;
       lastPaymentIntentId = typeof intent === 'string' ? intent : intent?.id ?? null;
       if (invoice?.amount_paid != null) lastChargeAmountPence = invoice.amount_paid;
@@ -208,6 +215,14 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
     subscription = result.data;
   }
 
+  const prefFromStripeOrRow =
+    resolvedNotificationPref ??
+    ((subscription as { notification_preference?: string } | null | undefined)?.notification_preference);
+  const notificationPreferenceForRow: 'email' | 'telegram' | 'both' =
+    prefFromStripeOrRow === 'email' || prefFromStripeOrRow === 'telegram' || prefFromStripeOrRow === 'both'
+      ? prefFromStripeOrRow
+      : 'email';
+
   const patch = {
     payment_status: 'paid',
     payment_type: paymentType,
@@ -224,6 +239,7 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
     // activated after a key swap — whichever mode owns the actual
     // Stripe IDs wins, which is always the mode we're running in now.
     is_test_mode: stripeMode() === 'test',
+    notification_preference: notificationPreferenceForRow,
   } as const;
 
   if (!subscription) {
@@ -291,10 +307,17 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
 
   try {
     if (production && user.email) {
-      const prefForAlerts =
-        metaPref === 'email' || metaPref === 'telegram' || metaPref === 'both'
-          ? metaPref
-          : ((user as UserRecord).notification_preference ?? 'email');
+      const { data: prefRow } = await adminClient
+        .from('subscriptions')
+        .select('notification_preference')
+        .eq('id', subscription.id)
+        .maybeSingle();
+      const rawPref =
+        resolvedNotificationPref ??
+        (prefRow?.notification_preference as string | undefined) ??
+        'email';
+      const prefForAlerts: 'email' | 'telegram' | 'both' =
+        rawPref === 'email' || rawPref === 'telegram' || rawPref === 'both' ? rawPref : 'email';
 
       let telegramConnectUrl: string | null = null;
       if (prefForAlerts === 'telegram' || prefForAlerts === 'both') {
@@ -471,9 +494,10 @@ const handleRenewalOrPostEnd = async (invoice: Stripe.Invoice) => {
 
   if (isRenewal && user?.email && production) {
     let telegramConnectUrl: string | null = null;
-    const u = user as UserRecord;
-    const pref = u.notification_preference;
-    const chatId = u.telegram_chat_id;
+    const pref =
+      ((dbSub as { notification_preference?: string } | null)?.notification_preference as string | undefined) ??
+      'email';
+    const chatId = (user as UserRecord).telegram_chat_id;
     if ((pref === 'telegram' || pref === 'both') && chatId == null) {
       const linkToken = mintTelegramLinkToken();
       const { error: tokErr } = await adminClient

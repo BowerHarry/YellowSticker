@@ -53,15 +53,18 @@ export const callSupabaseFunction = async <T>(
     ...incomingHeaders,
   };
 
-  // Build URL with query parameters
+  // `params` is our own extension — never pass it to `fetch()` (non-standard
+  // RequestInit keys have caused broken POSTs / 400s in some browsers).
+  const { params, ...restInit } = init ?? {};
+
   let url = `${functionsBase}/${endpoint}`;
-  if (init?.params) {
-    const searchParams = new URLSearchParams(init.params);
+  if (params) {
+    const searchParams = new URLSearchParams(params);
     url += `?${searchParams.toString()}`;
   }
 
   const response = await fetch(url, {
-    ...init,
+    ...restInit,
     headers,
   });
 

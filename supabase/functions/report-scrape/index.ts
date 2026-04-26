@@ -179,17 +179,10 @@ type AlertableSubscription = {
   production_id: string;
   management_token: string | null;
   last_alerted_at: string | null;
+  notification_preference: string | null;
   users:
-    | {
-        email: string | null;
-        notification_preference: string | null;
-        telegram_chat_id: number | string | null;
-      }
-    | {
-        email: string | null;
-        notification_preference: string | null;
-        telegram_chat_id: number | string | null;
-      }[]
+    | { email: string | null; telegram_chat_id: number | string | null }
+    | { email: string | null; telegram_chat_id: number | string | null }[]
     | null;
 };
 
@@ -212,7 +205,7 @@ const fanOutAvailabilityEmails = async (
   const { data: subs, error } = await adminClient
     .from('subscriptions')
     .select(
-      'id,user_id,production_id,management_token,last_alerted_at,users(email,notification_preference,telegram_chat_id)',
+      'id,user_id,production_id,management_token,last_alerted_at,notification_preference,users(email,telegram_chat_id)',
     )
     .eq('production_id', production.id)
     .eq('payment_status', 'paid')
@@ -236,7 +229,7 @@ const fanOutAvailabilityEmails = async (
     subscriptions.map(async (sub) => {
       const userRecord = Array.isArray(sub.users) ? sub.users[0] : sub.users;
       const email = userRecord?.email ?? null;
-      const prefRaw = userRecord?.notification_preference ?? 'email';
+      const prefRaw = sub.notification_preference ?? 'email';
       const pref = prefRaw === 'sms' ? 'telegram' : prefRaw;
       const wantsEmail = pref === 'email' || pref === 'both';
       const wantsTelegram = pref === 'telegram' || pref === 'both';

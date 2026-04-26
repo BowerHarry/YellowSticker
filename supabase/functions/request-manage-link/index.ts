@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     // email. This prevents account enumeration.
     const { data: user } = await adminClient
       .from('users')
-      .select('id,email')
+      .select('id,email,telegram_chat_id')
       .eq('email', email)
       .maybeSingle();
 
@@ -51,6 +51,7 @@ Deno.serve(async (req) => {
         payment_status,
         subscription_end,
         management_token,
+        notification_preference,
         production:productions (
           name,
           theatre,
@@ -87,9 +88,12 @@ Deno.serve(async (req) => {
     }
 
     let telegramConnectUrl: string | null = null;
-    const pref = (user.notification_preference as string) ?? 'email';
+    const wantsTelegram = (subscriptions ?? []).some(
+      (r: { notification_preference?: string | null }) =>
+        r.notification_preference === 'telegram' || r.notification_preference === 'both',
+    );
     const chatId = user.telegram_chat_id as number | null | undefined;
-    if ((pref === 'telegram' || pref === 'both') && chatId == null) {
+    if (wantsTelegram && chatId == null) {
       const linkToken = mintTelegramLinkToken();
       const { error: tokErr } = await adminClient
         .from('users')

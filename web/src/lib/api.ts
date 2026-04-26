@@ -190,10 +190,11 @@ export interface SubscriptionData {
   subscriptionEnd: string | null;
   createdAt: string;
   isActive: boolean;
+  /** Per-show alert channel (email / telegram / both). */
+  notificationPreference: string;
   user: {
     id: string;
     email: string | null;
-    notificationPreference: string;
     telegramConnected?: boolean;
   };
   production: {
@@ -217,10 +218,10 @@ export const getSubscriptionByToken = async (
       subscriptionEnd: string | null;
       createdAt: string;
       isActive: boolean;
+      notificationPreference: string;
       user: {
         id: string;
         email: string | null;
-        notificationPreference: string;
         telegramConnected?: boolean;
       };
       production: {

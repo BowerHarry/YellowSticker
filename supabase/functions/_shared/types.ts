@@ -4,7 +4,6 @@ export type UserRecord = {
   id: string;
   email: string | null;
   phone: string | null;
-  notification_preference: NotificationPreference;
   telegram_chat_id?: number | null;
 };
 

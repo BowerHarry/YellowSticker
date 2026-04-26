@@ -15,10 +15,10 @@ interface SubscriptionData {
   lastChargeAmountPence?: number | null;
   createdAt: string;
   isActive: boolean;
+  notificationPreference: string;
   user: {
     id: string;
     email: string | null;
-    notificationPreference: string;
     telegramConnected?: boolean;
   };
   production: {
@@ -229,7 +229,7 @@ export const SubscriptionManagementPage = () => {
         </p>
         <div style={{ marginTop: '1rem' }}>
           <NotificationPreferenceSelector
-            value={(subscription.user.notificationPreference as NotificationPreference) || 'email'}
+            value={(subscription.notificationPreference as NotificationPreference) || 'email'}
             disabled={notifBusy || !subscription.isActive}
             onChange={(value) => {
               if (!token) return;
@@ -250,8 +250,8 @@ export const SubscriptionManagementPage = () => {
             }}
           />
           {subscription.isActive &&
-            (subscription.user.notificationPreference === 'telegram' ||
-              subscription.user.notificationPreference === 'both') && (
+            (subscription.notificationPreference === 'telegram' ||
+              subscription.notificationPreference === 'both') && (
               <p style={{ marginTop: '1rem', fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: 0 }}>
                 Telegram status:{' '}
                 {subscription.user.telegramConnected ? (

@@ -313,10 +313,10 @@ Deno.serve(async (req) => {
           current_period_start,
           last_charge_amount_pence,
           created_at,
+          notification_preference,
           user:users (
             id,
             email,
-            notification_preference,
             telegram_chat_id
           ),
           production:productions (
@@ -352,16 +352,15 @@ Deno.serve(async (req) => {
       type UserJoin = {
         id: string;
         email: string | null;
-        notification_preference: string;
         telegram_chat_id: number | string | null;
       };
       const rawUser = subscription.user as UserJoin | UserJoin[] | null;
       const userRow = Array.isArray(rawUser) ? rawUser[0] : rawUser;
+      const subPref = (subscription as { notification_preference?: string }).notification_preference ?? 'email';
       const userPayload = userRow
         ? {
             id: userRow.id,
             email: userRow.email,
-            notificationPreference: userRow.notification_preference,
             telegramConnected: userRow.telegram_chat_id != null && userRow.telegram_chat_id !== '',
           }
         : null;
@@ -378,6 +377,7 @@ Deno.serve(async (req) => {
           lastChargeAmountPence: subscription.last_charge_amount_pence,
           createdAt: subscription.created_at,
           isActive,
+          notificationPreference: subPref,
           user: userPayload,
           production: subscription.production,
           refundGuarantee: {
@@ -420,9 +420,9 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: 'Invalid preference' }, 400);
         }
         const { error: upErr } = await adminClient
-          .from('users')
+          .from('subscriptions')
           .update({ notification_preference: pref })
-          .eq('id', sub.user_id);
+          .eq('id', sub.id);
         if (upErr) {
           console.error(upErr);
           return jsonResponse({ error: 'Failed to update preference' }, 500);
