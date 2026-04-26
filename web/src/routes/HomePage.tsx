@@ -3,16 +3,23 @@ import { Link } from 'react-router-dom';
 import { useProductions } from '../hooks/useProductions';
 import { useComingSoonProductions } from '../hooks/useComingSoonProductions';
 import { ProductionCard } from '../components/ProductionCard';
-
+import { getStorageUrl } from '../lib/supabaseClient';
 
 export const HomePage = () => {
   const { productions, loading, error } = useProductions();
   const { productions: comingSoon, loading: comingSoonLoading } = useComingSoonProductions();
   const [activeTab, setActiveTab] = useState<'now-showing' | 'coming-soon'>('now-showing');
 
+  const featured = productions[0] ?? comingSoon[0];
+  const featuredPoster = featured?.poster_url
+    ? featured.poster_url.startsWith('http')
+      ? featured.poster_url
+      : getStorageUrl('production-posters', featured.poster_url)
+    : null;
+
   return (
-    <div>
-      <section className="hero">
+    <div className="home-flow">
+      <section className="hero home-flow__panel home-flow__panel--hero">
         <div className="hero__copy">
           <span className="hero__eyebrow">
             <span className="hero__eyebrow-dot" />
@@ -29,9 +36,9 @@ export const HomePage = () => {
             <a href="#productions" className="btn btn--large">
               Browse productions
             </a>
-            <Link to="/faq" className="btn btn--ghost btn--large">
+            <a href="#how-it-works" className="btn btn--ghost btn--large">
               How it works
-            </Link>
+            </a>
           </div>
           <div className="hero__meta">
             <span>Email or Telegram alerts</span>
@@ -70,17 +77,23 @@ export const HomePage = () => {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section home-flow__panel" id="how-it-works">
         <div className="how-it-works-wrap">
           <div className="steps">
             <article className="step-card">
               <span className="step-card__num">1</span>
               <div className="step-card__visual" aria-hidden="true">
                 <div className="mock-tile">
-                  <div className="mock-tile__poster">YS</div>
+                  <div className="mock-tile__poster">
+                    {featuredPoster ? (
+                      <img src={featuredPoster} alt="" />
+                    ) : (
+                      <span>YS</span>
+                    )}
+                  </div>
                   <div className="mock-tile__text">
-                    <strong>The show you love</strong>
-                    <span>Sondheim Theatre</span>
+                    <strong>{featured?.name ?? 'The show you love'}</strong>
+                    <span>{featured?.theatre ?? 'West End'}</span>
                   </div>
                 </div>
               </div>
@@ -93,13 +106,13 @@ export const HomePage = () => {
             <article className="step-card">
               <span className="step-card__num">2</span>
               <div className="step-card__visual" aria-hidden="true">
-                <div className="mock-subscribe">
-                  <div className="mock-subscribe__row">
-                    <span className="pill">£2 / month</span>
-                    <span>per show</span>
+                <div className="mock-tag">
+                  <div className="mock-tag__amount">
+                    <span className="mock-tag__currency">£</span>
+                    <span className="mock-tag__value">2</span>
+                    <span className="mock-tag__period">/mo</span>
                   </div>
-                  <span className="mock-subscribe__btn">Subscribe →</span>
-                  <span className="mock-subscribe__check">Cancel anytime</span>
+                  <span className="mock-tag__label">Per show · cancel anytime</span>
                 </div>
               </div>
               <h3 className="step-card__title">Subscribe</h3>
@@ -172,7 +185,7 @@ export const HomePage = () => {
         </div>
       </section>
 
-      <section className="section" id="productions">
+      <section className="section home-flow__panel" id="productions">
         <div className="section__head">
           <div>
             <p className="section__eyebrow">Productions we cover</p>

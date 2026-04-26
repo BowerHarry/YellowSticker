@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { requestManageLink } from '../lib/api';
 
 export const LoginPage = () => {
@@ -27,16 +28,24 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="grid" style={{ gap: '1.25rem', maxWidth: '520px', margin: '2rem auto 0' }}>
-      <div className="glass-card glass-card--accent">
-        <h1 style={{ marginBottom: '0.375rem' }}>Manage your alerts</h1>
-        <p className="muted" style={{ margin: 0 }}>
-          Enter your email and we&apos;ll send a secure magic link to view or cancel your subscriptions.
-        </p>
-      </div>
+    <div className="login-page">
+      <Link to="/" className="login-page__back">
+        ← Back to home
+      </Link>
 
-      <div className="glass-card">
-        <form onSubmit={handleSubmit} className="grid" style={{ gap: '1rem' }}>
+      <header className="login-page__hero">
+        <div className="login-page__brand" aria-hidden="true">
+          YS
+        </div>
+        <h1>Manage your alerts.</h1>
+        <p>
+          Pop in your email and we&apos;ll send a secure magic link to view, pause, or cancel
+          your subscriptions.
+        </p>
+      </header>
+
+      <div className="login-page__card">
+        <form onSubmit={handleSubmit} className="stack">
           <div className="form-field">
             <label htmlFor="login-email">Email address</label>
             <input
@@ -55,19 +64,21 @@ export const LoginPage = () => {
           </button>
         </form>
 
-        {error && (
-          <p className="input-error" style={{ marginTop: '0.875rem' }}>{error}</p>
-        )}
+        {error && <p className="input-error mt-sm">{error}</p>}
 
         {success && (
-          <div className="banner banner--success" style={{ marginTop: '1rem' }}>
+          <div className="banner banner--success mt-md">
             <p>
-              If we found subscriptions for that email, we&apos;ve just sent your manage links. Check your inbox or
-              spam folder in the next few minutes.
+              If we found subscriptions for that email, we&apos;ve just sent your manage links.
+              Check your inbox or spam folder in the next few minutes.
             </p>
           </div>
         )}
       </div>
+
+      <p className="login-page__footnote">
+        First time here? <Link to="/">Browse productions</Link> to set up alerts.
+      </p>
     </div>
   );
 };
