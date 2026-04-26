@@ -2,16 +2,51 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- Inlined 32×32 PNG so the tab icon still loads if /favicon.ico is swallowed by an SPA rewrite. -->
-    <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABmUlEQVR4nO2XTShEURSAv3eNnzDFwsJYkGQ3U5KSFKFISNKzMiuRLIymUIqNYlJErCQrKUqsFGLlZyNkQxFZSFJqkoUZQzwTZYan3o/F+zbv3XdPfefec+6rCyYjRZt4OeZFU5EzskvSW/xbIsJIeSSHMFIeySUwGWH06sOEnQKTEVYCWCVQQU0HxOXB6eXnt2I3pBbBzR3MLEFOtRKTUQ6dwxAIatiEU30Qa4MunzJeXIPtAxjywL0fWgbAXQf+PSV2Yg6m5tUlYFMTlOmAgXboGYOlDegZhUIXtDbC7pESk2KHhHioL3s/46qR1P6Igs+QL8PJBYRCsL8ArlzlvcEDK1tQWgDNtSBXQnKiCrkTSfUpsMXAeC88BaBNVuRvCAHLE7A+DVkO8I5AdhXsHOpwDLMyPp6O73MVhTA7COerSlL9kzokEInJeRAuWN5UdufsCh4eIT0N7ZrwJ9qb4PoWPD6QvWBPgpoSGOtG2ybUgz81oV4IKwGsEhD90qAnYaf4NyWQDNyFry4RbcII+fs4WqBRl1PTeQWOfG+sc59dIQAAAABJRU5ErkJggg==" />
-    <link rel="shortcut icon" href="/favicon.ico?v=4" type="image/x-icon" />
-    <link rel="icon" href="/favicon.ico?v=4" sizes="any" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=4" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png?v=4" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=4" />
-    <link rel="icon" type="image/svg+xml" href="/yellow-sticker.svg?v=4" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Yellow Sticker — Discount Theatre Alerts</title>
+
+    <title>Yellow Sticker — Same-day standing-ticket alerts</title>
+    <meta
+      name="description"
+      content="Yellow Sticker watches official West End box offices and alerts you the moment same-day standing tickets drop. £2 a month per show. Cancel anytime."
+    />
+    <meta name="theme-color" content="#0a0a0b" />
+
+    <!-- Favicons (versioned to bust caches) -->
+    <link rel="icon" type="image/svg+xml" href="/yellow-sticker.svg?v=5" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=5" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png?v=5" />
+    <link rel="shortcut icon" href="/favicon.ico?v=5" type="image/x-icon" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=5" />
+    <!-- Inlined fallback so the tab icon still loads if SPA rewrites swallow /favicon.ico -->
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABmUlEQVR4nO2XTShEURSAv3eNnzDFwsJYkGQ3U5KSFKFISNKzMiuRLIymUIqNYlJErCQrKUqsFGLlZyNkQxFZSFJqkoUZQzwTZYan3o/F+zbv3XdPfefec+6rCyYjRZt4OeZFU5EzskvSW/xbIsJIeSSHMFIeySUwGWH06sOEnQKTEVYCWCVQQU0HxOXB6eXnt2I3pBbBzR3MLEFOtRKTUQ6dwxAIatiEU30Qa4MunzJeXIPtAxjywL0fWgbAXQf+PSV2Yg6m5tUlYFMTlOmAgXboGYOlDegZhUIXtDbC7pESk2KHhHioL3s/46qR1P6Igs+QL8PJBYRCsL8ArlzlvcEDK1tQWgDNtSBXQnKiCrkTSfUpsMXAeC88BaBNVuRvCAHLE7A+DVkO8I5AdhXsHOpwDLMyPp6O73MVhTA7COerSlL9kzakHE6Pxhuo74IsohcLG6SFzCH/jUNQVJrKaXsMbtaxnpWHHN4sDl5e7K6ddCqq00OOKRP7KKiwoeNfKBcLbDNrlMHlgKLLqZHixPKr+Rbmfhxq19fAAAAAElFTkSuQmCC"
+    />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Yellow Sticker" />
+    <meta property="og:title" content="Yellow Sticker — Same-day standing-ticket alerts" />
+    <meta
+      property="og:description"
+      content="Be first when standing tickets drop. £2 a month per show. Cancel anytime, refund if no tickets are found."
+    />
+    <meta property="og:url" content="https://yellowsticker.uk/" />
+    <meta property="og:image" content="https://yellowsticker.uk/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Yellow Sticker — Be first when standing tickets drop." />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Yellow Sticker — Same-day standing-ticket alerts" />
+    <meta
+      name="twitter:description"
+      content="Be first when standing tickets drop. £2 a month per show. Cancel anytime."
+    />
+    <meta name="twitter:image" content="https://yellowsticker.uk/og-image.png" />
   </head>
   <body>
     <div id="root"></div>

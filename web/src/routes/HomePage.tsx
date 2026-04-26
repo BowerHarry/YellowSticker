@@ -30,24 +30,64 @@ export const HomePage = () => {
   return (
     <div>
       <section className="hero">
-        <span className="hero__eyebrow">
-          <span className="hero__eyebrow-dot" />
-          Standing tickets, same day
-        </span>
-        <h1 className="hero__title">Be first when standing tickets drop.</h1>
-        <p className="hero__subtitle">
-          Yellow Sticker quietly watches official box offices and pings you the second same-day
-          standing tickets appear for the shows you care about. £2 a month per show.
-        </p>
-        <div className="hero__cta">
-          <a href="#productions" className="btn btn--large">
-            Browse productions
-          </a>
-          <Link to="/faq" className="btn btn--ghost btn--large">
-            How it works
-          </Link>
+        <div className="hero__copy">
+          <span className="hero__eyebrow">
+            <span className="hero__eyebrow-dot" />
+            Watching now · West End
+          </span>
+          <h1 className="hero__title">
+            Be first when <em>standing tickets</em> drop.
+          </h1>
+          <p className="hero__subtitle">
+            Yellow Sticker quietly watches official box offices and pings you the second same-day
+            standing tickets appear for the shows you care about. £2 a month per show.
+          </p>
+          <div className="hero__cta">
+            <a href="#productions" className="btn btn--large">
+              Browse productions
+            </a>
+            <Link to="/faq" className="btn btn--ghost btn--large">
+              How it works
+            </Link>
+          </div>
+          <div className="hero__meta">
+            <span>Email or Telegram alerts</span>
+            <span className="hero__meta-sep" />
+            <span>Cancel anytime</span>
+            <span className="hero__meta-sep" />
+            <span>No tickets, no charge</span>
+          </div>
         </div>
-        <p className="hero__meta">Email or Telegram alerts · Cancel anytime · No-tickets-no-charge</p>
+
+        <div className="hero__visual" aria-hidden="true">
+          <div className="alert-preview">
+            <div className="alert-preview__floater alert-preview__floater--top">
+              <span className="pill__dot" />
+              Live · checking every 5 min
+            </div>
+            <div className="alert-preview__head">
+              <div className="alert-preview__avatar">YS</div>
+              <div className="alert-preview__sender">
+                <strong>Yellow Sticker</strong>
+                <span>via Telegram</span>
+              </div>
+              <span className="alert-preview__time">14:02</span>
+            </div>
+            <div className="alert-preview__body">
+              <p className="alert-preview__title">Standing tickets just dropped</p>
+              <p className="alert-preview__msg">
+                <b>3 standing tickets</b> released for tonight at the Sondheim Theatre. Buy now from the
+                official box office before they go.
+              </p>
+              <a href="#productions" className="alert-preview__cta">
+                Open box office →
+              </a>
+            </div>
+            <div className="alert-preview__floater alert-preview__floater--bottom">
+              Tap-through &lt; 30s
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="section">
@@ -64,25 +104,21 @@ export const HomePage = () => {
 
           <Link
             to="/faq#refund-guarantee"
-            className="guarantee-link"
+            className="guarantee"
             aria-label="Money-back guarantee — read the terms"
           >
-            <span className="guarantee-link__icon" aria-hidden="true">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M13.5 4.5 6.5 11.5 2.5 7.5"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span className="guarantee-link__text">
-              <strong>Money-back guarantee.</strong>{' '}
-              No standing tickets found before your renewal? Get a full refund.
-            </span>
-            <span className="guarantee-link__chev" aria-hidden="true">→</span>
+            <div className="guarantee__stamp" aria-hidden="true">
+              <strong>100%</strong>
+              <small>Money back</small>
+            </div>
+            <div className="guarantee__body">
+              <h3 className="guarantee__title">No tickets, no charge.</h3>
+              <p className="guarantee__text">
+                If we don&apos;t find any standing tickets before your next renewal, we refund the full
+                month — automatically.
+              </p>
+            </div>
+            <span className="guarantee__chev" aria-hidden="true">→</span>
           </Link>
         </div>
       </section>

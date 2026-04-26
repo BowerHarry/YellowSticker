@@ -6,11 +6,19 @@ import { getStorageUrl } from '../lib/supabaseClient';
 const formatDateTime = (value?: string | null) => {
   if (!value) return '—';
   const date = new Date(value);
-  return `${date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`;
+  return `${date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString(
+    'en-GB',
+    { hour: '2-digit', minute: '2-digit' },
+  )}`;
 };
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? '')
+    .join('') || 'YS';
 
 export const ProductionPage = () => {
   const { slug } = useParams();
@@ -28,7 +36,7 @@ export const ProductionPage = () => {
     return (
       <div className="banner banner--error">
         {error ?? 'We could not find that production.'}{' '}
-        <Link to="/" style={{ color: 'inherit', textDecoration: 'underline' }}>
+        <Link to="/" className="status-text--success">
           Return home
         </Link>
       </div>
@@ -46,63 +54,31 @@ export const ProductionPage = () => {
     : null;
 
   return (
-    <div className="grid" style={{ gap: '1.5rem' }}>
+    <div className="stack">
       <Link to="/" className="back-link">
         ← Back to productions
       </Link>
 
-      <div className="detail-grid">
-        <article className="glass-card glass-card--accent">
-          {posterUrl && (
-            <div
-              style={{
-                aspectRatio: '16 / 10',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                marginBottom: '1.25rem',
-                border: '1px solid var(--border)',
-              }}
-            >
-              <img
-                src={posterUrl}
-                alt={`${production.name} poster`}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              />
-            </div>
+      <div className="prod-detail">
+        <div className="prod-detail__media">
+          {posterUrl ? (
+            <img src={posterUrl} alt={`${production.name} poster`} />
+          ) : (
+            <span className="prod-detail__media-placeholder">{initials(production.name)}</span>
           )}
+        </div>
 
-          <span
-            className="pill pill--muted"
-            style={{ background: 'rgba(255, 214, 10, 0.1)', color: 'var(--yellow)', borderColor: 'var(--border-yellow)' }}
-          >
-            £2 / month
-          </span>
-          <h1 style={{ margin: '0.625rem 0 0.25rem' }}>{production.name}</h1>
-          <p className="muted" style={{ margin: 0 }}>{production.theatre}</p>
+        <header className="prod-detail__head">
+          <span className="pill prod-detail__price">£2 / month</span>
+          <h1 className="prod-detail__title">{production.name}</h1>
+          <p className="prod-detail__theatre">{production.theatre}</p>
+        </header>
 
-          {production.description && (
-            <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>{production.description}</p>
-          )}
-
-          <div className="stat-blocks">
-            <div className="stat-block">
-              <span className="stat-block__label">Last checked</span>
-              <span className="stat-block__value">{formatDateTime(production.last_checked_at)}</span>
-            </div>
-            <div className="stat-block">
-              <span className="stat-block__label">Last tickets found</span>
-              <span className="stat-block__value">
-                {formatDateTime(production.last_standing_tickets_found_at)}
-              </span>
-            </div>
-          </div>
-        </article>
-
-        <article className="glass-card form-panel">
-          <h2 style={{ marginBottom: '0.25rem' }}>Reserve your alerts</h2>
+        <article className="prod-detail__form-card">
+          <h2>{isComingSoon ? 'Coming soon' : 'Reserve your alerts'}</h2>
           {isComingSoon ? (
             <>
-              <p className="muted" style={{ margin: '0 0 1rem' }}>
+              <p className="prod-detail__form-intro">
                 Subscriptions open when the show starts.
               </p>
               <div className="banner banner--warning">
@@ -117,26 +93,44 @@ export const ProductionPage = () => {
             </>
           ) : (
             <>
-              <p className="muted" style={{ margin: '0 0 1.25rem' }}>
-                We watch the official box office and notify you the moment same-day standing tickets appear.
+              <p className="prod-detail__form-intro">
+                We watch the official box office and notify you the second same-day standing tickets appear.
               </p>
               <SubscriptionForm production={production} />
             </>
           )}
         </article>
-      </div>
 
-      <article className="glass-card">
-        <h2 style={{ marginBottom: '0.75rem' }}>How notifications work</h2>
-        <ol style={{ margin: 0, paddingLeft: '1.25rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-          <li>We poll the official availability for standing tickets at {production.theatre}.</li>
-          <li>
-            If standing tickets are released for today&apos;s performance, subscribed customers are notified
-            immediately by email or Telegram.
-          </li>
-          <li>You buy directly from the theatre&apos;s real checkout — same prices, same protections.</li>
-        </ol>
-      </article>
+        <div className="prod-detail__about">
+          {production.description && (
+            <p className="prod-detail__description">{production.description}</p>
+          )}
+          <div className="stat-blocks">
+            <div className="stat-block">
+              <span className="stat-block__label">Last checked</span>
+              <span className="stat-block__value">{formatDateTime(production.last_checked_at)}</span>
+            </div>
+            <div className="stat-block">
+              <span className="stat-block__label">Last tickets found</span>
+              <span className="stat-block__value">
+                {formatDateTime(production.last_standing_tickets_found_at)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="prod-detail__how">
+          <h3>How notifications work</h3>
+          <ol>
+            <li>We poll the official availability for standing tickets at {production.theatre}.</li>
+            <li>
+              If standing tickets are released for today&apos;s performance, subscribed customers are notified
+              immediately by email or Telegram.
+            </li>
+            <li>You buy directly from the theatre&apos;s real checkout — same prices, same protections.</li>
+          </ol>
+        </div>
+      </div>
     </div>
   );
 };
