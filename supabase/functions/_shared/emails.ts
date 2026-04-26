@@ -224,6 +224,35 @@ export const availabilityEmail = (
   };
 };
 
+/** Compact HTML for Telegram (<b>, <a>, <i> only) — mirrors {@link availabilityEmail} content. */
+export const availabilityTelegramHtml = (
+  production: ProductionInfo & {
+    scrapingUrl: string;
+    seriesCode?: string | null;
+  },
+  sub: SubscriptionInfo,
+  counts: { standCount: number | null; performanceCount: number | null },
+): string => {
+  const href = boxOfficeUrl(production.seriesCode ?? null, production.scrapingUrl);
+  const manage = manageLink(sub.managementToken ?? null);
+  let body = `<b>${escapeHtml(production.name)}</b>\n\n`;
+  body += `Standing tickets look available at <b>${escapeHtml(production.theatre)}</b> right now.`;
+  if (counts.standCount != null) {
+    body += `\n\nFound <b>${counts.standCount}</b> standing ticket${counts.standCount === 1 ? '' : 's'}`;
+    if (counts.performanceCount != null) {
+      body += ` across <b>${counts.performanceCount}</b> performance${counts.performanceCount === 1 ? '' : 's'} today.`;
+    } else {
+      body += '.';
+    }
+  }
+  body += `\n\n<a href="${escapeHtml(href)}">Open the box office page</a>`;
+  if (manage) {
+    body += `\n\n<a href="${escapeHtml(manage)}">Manage subscription</a>`;
+  }
+  body += `\n\n<i>Yellow Sticker</i>`;
+  return body;
+};
+
 export const expiryNoticeEmail = (
   production: ProductionInfo,
   sub: SubscriptionInfo,

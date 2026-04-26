@@ -148,6 +148,11 @@ const activateSubscription = async (session: Stripe.Checkout.Session) => {
   const user = await ensureUserExists(userId, email);
   const actualUserId = user.id;
 
+  const metaPref = session.metadata?.notification_preference;
+  if (metaPref === 'email' || metaPref === 'telegram' || metaPref === 'both') {
+    await adminClient.from('users').update({ notification_preference: metaPref }).eq('id', actualUserId);
+  }
+
   const now = new Date();
 
   // Figure out the billing window + the PaymentIntent we'd refund, which

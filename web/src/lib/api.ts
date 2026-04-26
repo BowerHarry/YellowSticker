@@ -1,5 +1,10 @@
 import { callSupabaseFunction, supabase } from './supabaseClient';
-import type { MonitorStatusResponse, Production, SubscriptionPayload } from './types';
+import type {
+  MonitorStatusResponse,
+  NotificationPreference,
+  Production,
+  SubscriptionPayload,
+} from './types';
 
 // Get active productions (currently within their date range)
 export const getProductions = async (): Promise<Production[]> => {
@@ -189,6 +194,7 @@ export interface SubscriptionData {
     id: string;
     email: string | null;
     notificationPreference: string;
+    telegramConnected?: boolean;
   };
   production: {
     id: string;
@@ -215,6 +221,7 @@ export const getSubscriptionByToken = async (
         id: string;
         email: string | null;
         notificationPreference: string;
+        telegramConnected?: boolean;
       };
       production: {
         id: string;
@@ -393,6 +400,34 @@ export const adminTestFixture = async (
   );
   if (error) return { error };
   return { data: data ?? undefined };
+};
+
+export const updateNotificationPreference = async (
+  token: string,
+  preference: NotificationPreference,
+): Promise<{ ok?: boolean; error?: string }> => {
+  const { data, error } = await callSupabaseFunction<{ success: boolean }>('subscription-management', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'update_preference', preference }),
+    params: { token },
+  });
+  if (error) return { error };
+  return { ok: data?.success ?? true };
+};
+
+export const requestTelegramLink = async (
+  token: string,
+): Promise<{ telegramUrl?: string; error?: string }> => {
+  const { data, error } = await callSupabaseFunction<{ success: boolean; telegramUrl?: string }>(
+    'subscription-management',
+    {
+      method: 'POST',
+      body: JSON.stringify({ action: 'telegram_link' }),
+      params: { token },
+    },
+  );
+  if (error) return { error };
+  return { telegramUrl: data?.telegramUrl };
 };
 
 export const cancelSubscription = async (

@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { getSubscriptionByToken, cancelSubscription } from '../lib/api';
+import {
+  getSubscriptionByToken,
+  cancelSubscription,
+  updateNotificationPreference,
+  requestTelegramLink,
+} from '../lib/api';
+import type { NotificationPreference } from '../lib/types';
+import { NotificationPreferenceSelector } from '../components/NotificationPreferenceSelector';
 
 interface SubscriptionData {
   id: string;
@@ -17,6 +24,7 @@ interface SubscriptionData {
     id: string;
     email: string | null;
     notificationPreference: string;
+    telegramConnected?: boolean;
   };
   production: {
     id: string;
@@ -41,6 +49,8 @@ export const SubscriptionManagementPage = () => {
   const [cancelling, setCancelling] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState(false);
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
+  const [notifBusy, setNotifBusy] = useState(false);
+  const [tgBusy, setTgBusy] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -212,14 +222,77 @@ export const SubscriptionManagementPage = () => {
             <span>{formatDate(subscription.subscriptionEnd)}</span>
           </div>
 
-          <div>
-            <strong style={{ color: 'var(--text-muted)', fontSize: '0.85rem', display: 'block', marginBottom: '0.25rem' }}>
-              Notification Preference
-            </strong>
-            <span style={{ textTransform: 'capitalize' }}>
-              {subscription.user.notificationPreference || 'email'}
-            </span>
-          </div>
+        </div>
+      </div>
+
+      <div className="glass-card">
+        <h2 style={{ marginTop: 0 }}>Notifications</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 0 }}>
+          Choose email, Telegram, or both. For Telegram, open the link and tap Start in the chat with our bot.
+        </p>
+        <div style={{ marginTop: '1rem' }}>
+          <NotificationPreferenceSelector
+            value={(subscription.user.notificationPreference as NotificationPreference) || 'email'}
+            disabled={notifBusy || tgBusy || !subscription.isActive}
+            onChange={(value) => {
+              if (!token) return;
+              void (async () => {
+                setNotifBusy(true);
+                setError(null);
+                try {
+                  const res = await updateNotificationPreference(token, value);
+                  if (res.error) setError(res.error);
+                  else {
+                    const u = await getSubscriptionByToken(token);
+                    if (u) setSubscription(u);
+                  }
+                } finally {
+                  setNotifBusy(false);
+                }
+              })();
+            }}
+          />
+          {subscription.isActive &&
+            (subscription.user.notificationPreference === 'telegram' ||
+              subscription.user.notificationPreference === 'both') && (
+              <div style={{ marginTop: '1.25rem' }}>
+                <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                  Telegram status:{' '}
+                  {subscription.user.telegramConnected ? (
+                    <strong style={{ color: '#4caf50' }}>Connected</strong>
+                  ) : (
+                    <strong>Not connected yet</strong>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={tgBusy || notifBusy}
+                  onClick={() => {
+                    if (!token) return;
+                    void (async () => {
+                      setTgBusy(true);
+                      setError(null);
+                      try {
+                        const res = await requestTelegramLink(token);
+                        if (res.telegramUrl) {
+                          window.open(res.telegramUrl, '_blank', 'noopener,noreferrer');
+                        } else {
+                          setError(res.error ?? 'Could not open Telegram link');
+                        }
+                      } finally {
+                        setTgBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  {tgBusy ? 'Opening…' : 'Connect Telegram'}
+                </button>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem', marginBottom: 0 }}>
+                  After you message the bot, refresh this page to see Connected.
+                </p>
+              </div>
+            )}
         </div>
       </div>
 

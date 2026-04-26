@@ -26,7 +26,12 @@
 // extension is blocked and needs a visit.
 
 import { adminClient } from '../_shared/db.ts';
-import { availabilityEmail, sendEmail as sendSharedEmail } from '../_shared/emails.ts';
+import {
+  availabilityEmail,
+  availabilityTelegramHtml,
+  sendEmail as sendSharedEmail,
+} from '../_shared/emails.ts';
+import { sendTelegramHtml } from '../_shared/telegram.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -174,7 +179,18 @@ type AlertableSubscription = {
   production_id: string;
   management_token: string | null;
   last_alerted_at: string | null;
-  users: { email: string | null } | { email: string | null }[] | null;
+  users:
+    | {
+        email: string | null;
+        notification_preference: string | null;
+        telegram_chat_id: number | string | null;
+      }
+    | {
+        email: string | null;
+        notification_preference: string | null;
+        telegram_chat_id: number | string | null;
+      }[]
+    | null;
 };
 
 // Fan out availability emails to every active subscriber for the given
@@ -195,7 +211,9 @@ const fanOutAvailabilityEmails = async (
 
   const { data: subs, error } = await adminClient
     .from('subscriptions')
-    .select('id,user_id,production_id,management_token,last_alerted_at,users(email)')
+    .select(
+      'id,user_id,production_id,management_token,last_alerted_at,users(email,notification_preference,telegram_chat_id)',
+    )
     .eq('production_id', production.id)
     .eq('payment_status', 'paid')
     .gt('subscription_end', nowIso)
@@ -218,51 +236,87 @@ const fanOutAvailabilityEmails = async (
     subscriptions.map(async (sub) => {
       const userRecord = Array.isArray(sub.users) ? sub.users[0] : sub.users;
       const email = userRecord?.email ?? null;
-      if (!email) return 'skipped' as const;
+      const prefRaw = userRecord?.notification_preference ?? 'email';
+      const pref = prefRaw === 'sms' ? 'telegram' : prefRaw;
+      const wantsEmail = pref === 'email' || pref === 'both';
+      const wantsTelegram = pref === 'telegram' || pref === 'both';
+      const chatIdRaw = userRecord?.telegram_chat_id;
+      const chatId =
+        chatIdRaw != null && chatIdRaw !== '' && Number.isFinite(Number(chatIdRaw))
+          ? Number(chatIdRaw)
+          : null;
 
-      const { subject, html } = availabilityEmail(
-        {
-          name: production.name,
-          theatre: production.theatre,
-          city: production.city ?? null,
-          slug: production.slug,
-          endDate: production.end_date ?? null,
-          scrapingUrl: production.scraping_url,
-          seriesCode: production.series_code,
-        },
-        {
-          paymentType: 'subscription',
-          managementToken: sub.management_token,
-        },
-        {
-          standCount: body.standCount ?? null,
-          performanceCount: body.performanceCount ?? null,
-        },
-      );
+      const productionArgs = {
+        name: production.name,
+        theatre: production.theatre,
+        city: production.city ?? null,
+        slug: production.slug,
+        endDate: production.end_date ?? null,
+        scrapingUrl: production.scraping_url,
+        seriesCode: production.series_code,
+      };
+      const subArgs = {
+        paymentType: 'subscription' as const,
+        managementToken: sub.management_token,
+      };
+      const counts = {
+        standCount: body.standCount ?? null,
+        performanceCount: body.performanceCount ?? null,
+      };
 
-      const messageId = await sendSharedEmail({ to: email, subject, html });
-      if (!messageId) return 'failed' as const;
+      const { subject, html } = availabilityEmail(productionArgs, subArgs, counts);
+      const tgHtml = availabilityTelegramHtml(productionArgs, subArgs, counts);
 
-      await adminClient
-        .from('subscriptions')
-        .update({ last_alerted_at: nowIso })
-        .eq('id', sub.id);
+      let attempted = false;
+      let anySuccess = false;
 
-      await adminClient.from('notification_logs').insert({
-        user_id: sub.user_id,
-        production_id: production.id,
-        type: 'email',
-        channel_message_id: messageId,
-        payload: {
-          recipient: email,
-          reason: 'standing_available',
-          standCount: body.standCount ?? null,
-          performanceCount: body.performanceCount ?? null,
-          transitionAt,
-        },
-      });
+      if (wantsEmail && email) {
+        attempted = true;
+        const messageId = await sendSharedEmail({ to: email, subject, html });
+        if (messageId) {
+          anySuccess = true;
+          await adminClient.from('notification_logs').insert({
+            user_id: sub.user_id,
+            production_id: production.id,
+            type: 'email',
+            channel_message_id: messageId,
+            payload: {
+              recipient: email,
+              reason: 'standing_available',
+              standCount: body.standCount ?? null,
+              performanceCount: body.performanceCount ?? null,
+              transitionAt,
+            },
+          });
+        }
+      }
 
-      return 'sent' as const;
+      if (wantsTelegram && chatId != null) {
+        attempted = true;
+        const tg = await sendTelegramHtml(chatId, tgHtml);
+        if (tg) {
+          anySuccess = true;
+          await adminClient.from('notification_logs').insert({
+            user_id: sub.user_id,
+            production_id: production.id,
+            type: 'telegram',
+            channel_message_id: tg.messageId,
+            payload: {
+              reason: 'standing_available',
+              standCount: body.standCount ?? null,
+              performanceCount: body.performanceCount ?? null,
+              transitionAt,
+            },
+          });
+        }
+      }
+
+      if (anySuccess) {
+        await adminClient.from('subscriptions').update({ last_alerted_at: nowIso }).eq('id', sub.id);
+        return 'sent' as const;
+      }
+      if (attempted) return 'failed' as const;
+      return 'skipped' as const;
     }),
   );
 

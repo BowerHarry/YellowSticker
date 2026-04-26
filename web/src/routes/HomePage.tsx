@@ -44,7 +44,7 @@ export const HomePage = () => {
           </a>
         </div>
         <p className="hero__meta">
-          Just £2/month per show • Email ticket alerts
+          Just £2/month per show • Email or Telegram ticket alerts
         </p>
       </section>
 

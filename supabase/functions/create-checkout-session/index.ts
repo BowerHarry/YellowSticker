@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
       user_id: user.id,
       production_id: production.id,
       payment_type: paymentType,
+      notification_preference: payload.preference,
     };
 
     const productDescription =

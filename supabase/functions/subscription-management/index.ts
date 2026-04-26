@@ -1,16 +1,15 @@
 // subscription-management: token-gated endpoint used by the web's
 // `/manage?token=…` page. Supports:
 //
-//   GET  ?token=…                 → return subscription summary +
-//                                    whether the "no-tickets-found" refund
-//                                    guarantee currently applies.
-//   POST ?token=… {action:'cancel'} → cancel the subscription. If the
-//                                    refund guarantee applies at that
-//                                    moment, refund the last PaymentIntent
-//                                    and cancel immediately. Otherwise we
-//                                    keep the legacy behaviour: schedule
-//                                    the Stripe subscription to cancel at
-//                                    the end of the current period.
+//   GET  ?token=…  → subscription summary + refund guarantee snapshot.
+//   POST ?token=…  → one of:
+//     { action: 'cancel', cancelMode?: 'refund_now' | 'period_end' }
+//     { action: 'update_preference', preference: 'email'|'telegram'|'both' }
+//     { action: 'telegram_link' } → { telegramUrl } deep-link to the bot
+//
+// Cancel: if the refund guarantee applies, refund the last PaymentIntent
+// and cancel immediately when requested; otherwise schedule cancel at
+// period end (legacy path).
 //
 // The refund guarantee is:
 //   "no standing tickets have been found since your last payment"
@@ -135,6 +134,158 @@ const issueRefund = async (paymentIntentId: string): Promise<number | null> => {
   }
 };
 
+const runSubscriptionCancel = async (
+  sub: SubscriptionRow,
+  cancelMode: CancelMode | undefined,
+): Promise<Response> => {
+  const { data: production } = await adminClient
+    .from('productions')
+    .select('*')
+    .eq('id', sub.production_id)
+    .maybeSingle();
+
+  const guarantee = computeRefundGuarantee(sub, production);
+  const refundEligible = guarantee.applies && !!sub.last_payment_intent_id;
+  const selectedMode: CancelMode = cancelMode === 'period_end' ? 'period_end' : 'refund_now';
+  const shouldRefund = selectedMode === 'refund_now' && refundEligible;
+  const keepUntilPeriodEnd = selectedMode === 'period_end';
+
+  // Cancel Stripe side first — either immediately (refund path) or at
+  // period end (normal path for auto-renew subs that received value).
+  const isAutoRenew = sub.payment_type === 'subscription';
+  try {
+    if (isAutoRenew) {
+      await cancelStripeSide(sub, { immediate: shouldRefund });
+    } else if (shouldRefund) {
+      await cancelStripeSide(sub, { immediate: true });
+    }
+  } catch (error) {
+    console.error('Error cancelling Stripe subscription:', error);
+    // Continue — we still want to reflect user intent in our DB.
+  }
+
+  let refundedAmountPence: number | null = null;
+  let refundStatus: 'refunded' | 'refund_failed' | 'skipped' = 'skipped';
+
+  if (shouldRefund && sub.last_payment_intent_id) {
+    const amount = await issueRefund(sub.last_payment_intent_id);
+    if (amount != null) {
+      refundedAmountPence = amount;
+      refundStatus = 'refunded';
+    } else {
+      refundStatus = 'refund_failed';
+    }
+  }
+
+  const newPaymentStatus = (() => {
+    if (refundStatus === 'refunded') return 'refunded';
+    if (refundStatus === 'refund_failed') return 'refund_failed';
+    // Period-end choice keeps access alive (and alert-eligible) until
+    // subscription_end, while preventing further renewal via Stripe
+    // cancel_at_period_end.
+    if (keepUntilPeriodEnd) return 'paid';
+    // Legacy immediate-cancel path (e.g. one-time with no refund).
+    return 'cancelled';
+  })();
+
+  const cancellationReason = (() => {
+    if (refundStatus === 'refunded' || refundStatus === 'refund_failed') {
+      return 'user_cancel_refund_now';
+    }
+    if (keepUntilPeriodEnd) return 'user_cancel_period_end';
+    return 'user_cancel';
+  })();
+
+  const { error: updateError } = await adminClient
+    .from('subscriptions')
+    .update({
+      payment_status: newPaymentStatus,
+      cancellation_reason: cancellationReason,
+    })
+    .eq('id', sub.id);
+
+  if (updateError) {
+    console.error('Error updating subscription:', updateError);
+    return jsonResponse({ error: 'Failed to cancel subscription' }, 500);
+  }
+
+  // Fire cancellation email (best-effort).
+  try {
+    const { data: user } = await adminClient
+      .from('users')
+      .select('*')
+      .eq('id', sub.user_id)
+      .maybeSingle();
+    if (user?.email && production) {
+      const effective = shouldRefund
+        ? ('immediately' as const)
+        : keepUntilPeriodEnd && isAutoRenew
+          ? ('period_end' as const)
+          : ('immediately' as const);
+      const { subject, html } = cancellationEmail(
+        {
+          name: (production as ProductionRecord).name,
+          theatre: (production as ProductionRecord).theatre,
+          city: (production as ProductionRecord).city ?? null,
+          slug: (production as ProductionRecord).slug,
+          endDate: (production as ProductionRecord).end_date ?? null,
+        },
+        {
+          paymentType: sub.payment_type ?? 'subscription',
+          currentPeriodStart: sub.current_period_start,
+          currentPeriodEnd: sub.subscription_end,
+          amountPence: sub.last_charge_amount_pence,
+          managementToken: sub.management_token,
+        },
+        {
+          refunded: refundStatus === 'refunded',
+          refundAmountPence: refundedAmountPence,
+          effective,
+          endsAt: sub.subscription_end,
+          reason: 'Cancelled at your request',
+        },
+      );
+      const messageId = await sendEmail({ to: (user as UserRecord).email ?? '', subject, html });
+      if (messageId) {
+        await adminClient.from('notification_logs').insert({
+          user_id: sub.user_id,
+          production_id: sub.production_id,
+          type: 'email',
+          channel_message_id: messageId,
+          payload: {
+            reason: 'subscription_cancelled',
+            refunded: refundStatus === 'refunded',
+            refundAmountPence: refundedAmountPence,
+          },
+        });
+      }
+    }
+  } catch (emailError) {
+    console.error('Failed to send cancellation email:', emailError);
+  }
+
+  const message = (() => {
+    if (refundStatus === 'refunded') {
+      return `Subscription cancelled and your most recent payment has been refunded in full (${(refundedAmountPence ?? 0) / 100} GBP). It may take 5–10 business days to land on your card.`;
+    }
+    if (refundStatus === 'refund_failed') {
+      return 'Subscription cancelled. We tried to refund your last payment per our guarantee but the refund failed — we\'ll follow up manually shortly.';
+    }
+    if (keepUntilPeriodEnd) {
+      return 'Subscription cancelled. You\'ll continue to receive alerts until the end of the current billing period.';
+    }
+    return 'Subscription cancelled.';
+  })();
+
+  return jsonResponse({
+    success: true,
+    message,
+    refunded: refundStatus === 'refunded',
+    refundAmountPence: refundedAmountPence,
+    paymentStatus: newPaymentStatus,
+  });
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders, status: 204 });
@@ -164,7 +315,8 @@ Deno.serve(async (req) => {
           user:users (
             id,
             email,
-            notification_preference
+            notification_preference,
+            telegram_chat_id
           ),
           production:productions (
             id,
@@ -196,6 +348,23 @@ Deno.serve(async (req) => {
         (subscription.production as { last_standing_tickets_found_at: string | null } | null) ?? null,
       );
 
+      type UserJoin = {
+        id: string;
+        email: string | null;
+        notification_preference: string;
+        telegram_chat_id: number | string | null;
+      };
+      const rawUser = subscription.user as UserJoin | UserJoin[] | null;
+      const userRow = Array.isArray(rawUser) ? rawUser[0] : rawUser;
+      const userPayload = userRow
+        ? {
+            id: userRow.id,
+            email: userRow.email,
+            notificationPreference: userRow.notification_preference,
+            telegramConnected: userRow.telegram_chat_id != null && userRow.telegram_chat_id !== '',
+          }
+        : null;
+
       return jsonResponse({
         subscription: {
           id: subscription.id,
@@ -208,7 +377,7 @@ Deno.serve(async (req) => {
           lastChargeAmountPence: subscription.last_charge_amount_pence,
           createdAt: subscription.created_at,
           isActive,
-          user: subscription.user,
+          user: userPayload,
           production: subscription.production,
           refundGuarantee: {
             applies: guarantee.applies,
@@ -220,13 +389,11 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'POST') {
-      const { action, cancelMode } = (await req.json()) as {
-        action?: string;
-        cancelMode?: CancelMode;
-      };
-
-      if (action !== 'cancel') {
-        return jsonResponse({ error: 'Invalid action' }, 400);
+      let bodyJson: { action?: string; cancelMode?: CancelMode; preference?: string };
+      try {
+        bodyJson = (await req.json()) as typeof bodyJson;
+      } catch {
+        return jsonResponse({ error: 'Invalid JSON' }, 400);
       }
 
       const { data: subscription, error: fetchError } = await adminClient
@@ -244,153 +411,49 @@ Deno.serve(async (req) => {
       }
 
       const sub = subscription as unknown as SubscriptionRow;
+      const action = bodyJson.action;
 
-      const { data: production } = await adminClient
-        .from('productions')
-        .select('*')
-        .eq('id', sub.production_id)
-        .maybeSingle();
-
-      const guarantee = computeRefundGuarantee(sub, production);
-      const refundEligible = guarantee.applies && !!sub.last_payment_intent_id;
-      const selectedMode: CancelMode = cancelMode === 'period_end' ? 'period_end' : 'refund_now';
-      const shouldRefund = selectedMode === 'refund_now' && refundEligible;
-      const keepUntilPeriodEnd = selectedMode === 'period_end';
-
-      // Cancel Stripe side first — either immediately (refund path) or at
-      // period end (normal path for auto-renew subs that received value).
-      const isAutoRenew = sub.payment_type === 'subscription';
-      try {
-        if (isAutoRenew) {
-          await cancelStripeSide(sub, { immediate: shouldRefund });
-        } else if (shouldRefund) {
-          await cancelStripeSide(sub, { immediate: true });
+      if (action === 'update_preference') {
+        const pref = bodyJson.preference;
+        if (pref !== 'email' && pref !== 'telegram' && pref !== 'both') {
+          return jsonResponse({ error: 'Invalid preference' }, 400);
         }
-      } catch (error) {
-        console.error('Error cancelling Stripe subscription:', error);
-        // Continue — we still want to reflect user intent in our DB.
-      }
-
-      let refundedAmountPence: number | null = null;
-      let refundStatus: 'refunded' | 'refund_failed' | 'skipped' = 'skipped';
-
-      if (shouldRefund && sub.last_payment_intent_id) {
-        const amount = await issueRefund(sub.last_payment_intent_id);
-        if (amount != null) {
-          refundedAmountPence = amount;
-          refundStatus = 'refunded';
-        } else {
-          refundStatus = 'refund_failed';
-        }
-      }
-
-      const newPaymentStatus = (() => {
-        if (refundStatus === 'refunded') return 'refunded';
-        if (refundStatus === 'refund_failed') return 'refund_failed';
-        // Period-end choice keeps access alive (and alert-eligible) until
-        // subscription_end, while preventing further renewal via Stripe
-        // cancel_at_period_end.
-        if (keepUntilPeriodEnd) return 'paid';
-        // Legacy immediate-cancel path (e.g. one-time with no refund).
-        return 'cancelled';
-      })();
-
-      const cancellationReason = (() => {
-        if (refundStatus === 'refunded' || refundStatus === 'refund_failed') {
-          return 'user_cancel_refund_now';
-        }
-        if (keepUntilPeriodEnd) return 'user_cancel_period_end';
-        return 'user_cancel';
-      })();
-
-      const { error: updateError } = await adminClient
-        .from('subscriptions')
-        .update({
-          payment_status: newPaymentStatus,
-          cancellation_reason: cancellationReason,
-        })
-        .eq('id', sub.id);
-
-      if (updateError) {
-        console.error('Error updating subscription:', updateError);
-        return jsonResponse({ error: 'Failed to cancel subscription' }, 500);
-      }
-
-      // Fire cancellation email (best-effort).
-      try {
-        const { data: user } = await adminClient
+        const { error: upErr } = await adminClient
           .from('users')
-          .select('*')
-          .eq('id', sub.user_id)
-          .maybeSingle();
-        if (user?.email && production) {
-          const effective = shouldRefund
-            ? ('immediately' as const)
-            : keepUntilPeriodEnd && isAutoRenew
-              ? ('period_end' as const)
-              : ('immediately' as const);
-          const { subject, html } = cancellationEmail(
-            {
-              name: (production as ProductionRecord).name,
-              theatre: (production as ProductionRecord).theatre,
-              city: (production as ProductionRecord).city ?? null,
-              slug: (production as ProductionRecord).slug,
-              endDate: (production as ProductionRecord).end_date ?? null,
-            },
-            {
-              paymentType: sub.payment_type ?? 'subscription',
-              currentPeriodStart: sub.current_period_start,
-              currentPeriodEnd: sub.subscription_end,
-              amountPence: sub.last_charge_amount_pence,
-              managementToken: sub.management_token,
-            },
-            {
-              refunded: refundStatus === 'refunded',
-              refundAmountPence: refundedAmountPence,
-              effective,
-              endsAt: sub.subscription_end,
-              reason: 'Cancelled at your request',
-            },
-          );
-          const messageId = await sendEmail({ to: (user as UserRecord).email ?? '', subject, html });
-          if (messageId) {
-            await adminClient.from('notification_logs').insert({
-              user_id: sub.user_id,
-              production_id: sub.production_id,
-              type: 'email',
-              channel_message_id: messageId,
-              payload: {
-                reason: 'subscription_cancelled',
-                refunded: refundStatus === 'refunded',
-                refundAmountPence: refundedAmountPence,
-              },
-            });
-          }
+          .update({ notification_preference: pref })
+          .eq('id', sub.user_id);
+        if (upErr) {
+          console.error(upErr);
+          return jsonResponse({ error: 'Failed to update preference' }, 500);
         }
-      } catch (emailError) {
-        console.error('Failed to send cancellation email:', emailError);
+        return jsonResponse({ success: true });
       }
 
-      const message = (() => {
-        if (refundStatus === 'refunded') {
-          return `Subscription cancelled and your most recent payment has been refunded in full (${(refundedAmountPence ?? 0) / 100} GBP). It may take 5–10 business days to land on your card.`;
+      if (action === 'telegram_link') {
+        const botUsername = Deno.env.get('TELEGRAM_BOT_USERNAME');
+        if (!botUsername?.trim()) {
+          return jsonResponse({ error: 'Telegram bot username not configured' }, 503);
         }
-        if (refundStatus === 'refund_failed') {
-          return 'Subscription cancelled. We tried to refund your last payment per our guarantee but the refund failed — we\'ll follow up manually shortly.';
+        const bytes = new Uint8Array(32);
+        crypto.getRandomValues(bytes);
+        const linkToken = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+        const { error: tokErr } = await adminClient
+          .from('users')
+          .update({ telegram_link_token: linkToken })
+          .eq('id', sub.user_id);
+        if (tokErr) {
+          console.error(tokErr);
+          return jsonResponse({ error: 'Failed to create link' }, 500);
         }
-        if (keepUntilPeriodEnd) {
-          return 'Subscription cancelled. You\'ll continue to receive alerts until the end of the current billing period.';
-        }
-        return 'Subscription cancelled.';
-      })();
+        const telegramUrl = `https://t.me/${botUsername.trim()}?start=${linkToken}`;
+        return jsonResponse({ success: true, telegramUrl });
+      }
 
-      return jsonResponse({
-        success: true,
-        message,
-        refunded: refundStatus === 'refunded',
-        refundAmountPence: refundedAmountPence,
-        paymentStatus: newPaymentStatus,
-      });
+      if (action === 'cancel') {
+        return runSubscriptionCancel(sub, bodyJson.cancelMode);
+      }
+
+      return jsonResponse({ error: 'Invalid action' }, 400);
     }
 
     return jsonResponse({ error: 'Method not allowed' }, 405);

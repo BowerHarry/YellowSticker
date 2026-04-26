@@ -1,29 +1,33 @@
-import { useEffect } from 'react';
 import type { NotificationPreference } from '../lib/types';
 
 type Props = {
   value: NotificationPreference;
   onChange: (value: NotificationPreference) => void;
+  disabled?: boolean;
 };
 
-export const NotificationPreferenceSelector = ({ value, onChange }: Props) => {
-  // For now, only email is supported (SMS coming soon)
-  useEffect(() => {
-    if (value !== 'email') {
-      onChange('email');
-    }
-  }, [value, onChange]);
+const OPTIONS: { value: NotificationPreference; label: string }[] = [
+  { value: 'email', label: 'Email only' },
+  { value: 'telegram', label: 'Telegram only' },
+  { value: 'both', label: 'Email and Telegram' },
+];
 
+export const NotificationPreferenceSelector = ({ value, onChange, disabled }: Props) => {
   return (
-    <div className="preference-group">
-      <div className="chip chip--active" style={{ cursor: 'default' }}>
-        Email notifications
-      </div>
-      <div className="chip chip--disabled" aria-disabled="true" title="SMS alerts are not available yet">
-        SMS (coming soon)
-      </div>
-      <input type="hidden" value="email" readOnly />
+    <div className="preference-group" role="radiogroup" aria-label="Notification method">
+      {OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          role="radio"
+          aria-checked={value === opt.value}
+          disabled={disabled}
+          className={`chip ${value === opt.value ? 'chip--active' : ''}`}
+          onClick={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 };
-

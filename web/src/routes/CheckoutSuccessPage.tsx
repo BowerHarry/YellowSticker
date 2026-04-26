@@ -54,7 +54,7 @@ export const CheckoutSuccessPage = () => {
           }}
         >
           <li>Your subscription starts immediately and runs for one month.</li>
-          <li>When we detect standing tickets, we'll email you right away.</li>
+          <li>When we detect standing tickets, we will notify you by email and/or Telegram, depending on what you chose.</li>
           <li>
             Use the management link in your signup email to view or cancel at
             any time — no account needed.

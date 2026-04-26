@@ -22,6 +22,9 @@ verify_jwt = false
 [functions."subscription-management"]
 verify_jwt = false
 
+[functions."telegram-webhook"]
+verify_jwt = false
+
 [functions."send-test-email"]
 verify_jwt = false
 

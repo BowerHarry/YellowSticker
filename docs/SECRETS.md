@@ -77,6 +77,25 @@ supabase secrets set BACKEND_API_SECRET_KEY='sb_secret_...'
 
 Do not default to a literal key in code.
 
+## Telegram (standing-ticket alerts)
+
+Set on the hosted project (and locally if you exercise `report-scrape` / `telegram-webhook`):
+
+| Secret | Purpose |
+|--------|---------|
+| `TELEGRAM_BOT_TOKEN` | Bot token from [@BotFather](https://t.me/BotFather); used by `report-scrape` to `sendMessage` and by `telegram-webhook` to reply after `/start`. |
+| `TELEGRAM_BOT_USERNAME` | Bot username **without** `@`; used to build `t.me/<user>?start=<link_token>` links from **subscription-management** (`telegram_link` action). |
+| `TELEGRAM_WEBHOOK_SECRET` | Optional. If set, `telegram-webhook` requires incoming `POST` requests to carry the same value in the `X-Telegram-Bot-Api-Secret-Token` header (configure via Telegram `setWebhook` `secret_token`). |
+
+```bash
+supabase secrets set TELEGRAM_BOT_TOKEN='...'
+supabase secrets set TELEGRAM_BOT_USERNAME='YourBotName'
+# optional:
+# supabase secrets set TELEGRAM_WEBHOOK_SECRET='...'
+```
+
+Register the webhook URL to your deployed **`telegram-webhook`** function (see `supabase/config.toml`; JWT verification is off so Telegram can POST with the bot token only on Telegram’s side — use `secret_token` in production).
+
 ## Pre-commit hygiene
 
 - Use `git grep` / IDE search for `eyJ` (JWT prefix) and `sb_secret` before pushing.  

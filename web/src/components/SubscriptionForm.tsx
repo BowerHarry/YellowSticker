@@ -9,7 +9,7 @@ import { createCheckoutSession } from '../lib/api';
 const schema = z.object({
   email: z.string().email({ message: 'Enter a valid email' }),
   phone: z.string().optional(), // Keep for API compatibility but don't show in UI
-  preference: z.enum(['email', 'sms', 'both']).default('email'),
+  preference: z.enum(['email', 'telegram', 'both']).default('email'),
   paymentType: z.enum(['subscription', 'one-time']).default('subscription'),
 });
 
@@ -57,8 +57,8 @@ export const SubscriptionForm = ({ production }: Props) => {
 
     const { checkoutUrl, error } = await createCheckoutSession({
       email: values.email,
-      phone: undefined, // Not collecting phone for now
-      preference: 'email' as const, // Always email for now
+      phone: undefined,
+      preference: values.preference,
       productionId: production.id,
       productionSlug: production.slug,
       paymentType: values.paymentType,
@@ -82,6 +82,9 @@ export const SubscriptionForm = ({ production }: Props) => {
 
       <div className="form-field">
         <label>Notification method</label>
+        <p style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          For Telegram-only or both, you will connect the bot from your subscription management page after checkout.
+        </p>
         <NotificationPreferenceSelector
           value={preference}
           onChange={(value) => {

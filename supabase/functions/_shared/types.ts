@@ -1,4 +1,4 @@
-export type NotificationPreference = 'email' | 'sms' | 'both';
+export type NotificationPreference = 'email' | 'telegram' | 'both';
 
 export type UserRecord = {
   id: string;
