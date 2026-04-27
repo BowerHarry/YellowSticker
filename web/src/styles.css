@@ -73,7 +73,6 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 64px;
-  scroll-snap-type: y proximity;
 }
 
 body {
@@ -1870,13 +1869,19 @@ p + p { margin-top: 0.75rem; }
 }
 
 .home-flow__panel {
-  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   justify-content: center;
   min-height: 100dvh;
   margin-top: 0;
   padding: 0;
+}
+
+/* Slightly bias key panels upward to reduce empty space at the top. */
+.home-flow__panel--hero,
+.home-flow__panel#how-it-works {
+  padding-top: 1.25rem;
+  padding-bottom: 2.75rem;
 }
 
 /* Productions: anchor content to top of the visible viewport (below the
@@ -1894,6 +1899,11 @@ p + p { margin-top: 0.75rem; }
   .home-flow__panel {
     min-height: auto;
     padding: 2rem 0;
+  }
+  .home-flow__panel--hero,
+  .home-flow__panel#how-it-works {
+    padding-top: 0.75rem;
+    padding-bottom: 2.25rem;
   }
   .home-flow__panel#productions {
     padding-top: 1rem;
