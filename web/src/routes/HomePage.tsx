@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useProductions } from '../hooks/useProductions';
 import { useComingSoonProductions } from '../hooks/useComingSoonProductions';
 import { ProductionCard } from '../components/ProductionCard';
@@ -9,9 +9,17 @@ const matchesProduction = (name: string | undefined | null, needle: string) =>
   Boolean(name && name.toLowerCase().includes(needle));
 
 export const HomePage = () => {
+  const location = useLocation();
   const { productions, loading, error } = useProductions();
   const { productions: comingSoon, loading: comingSoonLoading } = useComingSoonProductions();
   const [activeTab, setActiveTab] = useState<'now-showing' | 'coming-soon'>('now-showing');
+
+  useEffect(() => {
+    // Ensure home opens at the hero unless an explicit hash target is present.
+    if (!location.hash) {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [location.hash]);
 
   const allKnown = [...productions, ...comingSoon];
   const featured =
