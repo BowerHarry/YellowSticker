@@ -39,27 +39,27 @@ Together this is an **end-to-end subscription SaaS**: landing → pay → notify
 
 <p align="center">
   <strong>Home — hero</strong><br/>
-  <img src="docs/readme/home-hero.png" alt="Yellow Sticker homepage hero with headline and Telegram-style notification preview" width="780" />
+  <img src="docs/readme/home-hero.jpeg" alt="Yellow Sticker homepage hero with headline and Telegram-style notification preview" width="780" />
 </p>
 
 <p align="center">
   <strong>Home — how it works & guarantee</strong><br/>
-  <img src="docs/readme/home-how-it-works.png" alt="How it works steps and money-back guarantee section" width="780" />
+  <img src="docs/readme/home-how-it-works.jpeg" alt="How it works steps and money-back guarantee section" width="780" />
 </p>
 
 <p align="center">
   <strong>Browse productions</strong><br/>
-  <img src="docs/readme/browse-productions.png" alt="Production grid with show posters and subscribe buttons" width="780" />
+  <img src="docs/readme/browse-productions.jpeg" alt="Production grid with show posters and subscribe buttons" width="780" />
 </p>
 
 <p align="center">
   <strong>Production detail — subscribe</strong><br/>
-  <img src="docs/readme/production-detail.png" alt="Les Misérables production page with Reserve your alerts form" width="780" />
+  <img src="docs/readme/production-detail.jpeg" alt="Les Misérables production page with Reserve your alerts form" width="780" />
 </p>
 
 <p align="center">
   <strong>Standing-ticket alert email (Resend)</strong><br/>
-  <img src="docs/readme/email-alert.png" alt="Email notification standing tickets spotted with link to box office" width="780" />
+  <img src="docs/readme/email-alert.jpeg" alt="Email notification standing tickets spotted with link to box office" width="780" />
 </p>
 
 ---
