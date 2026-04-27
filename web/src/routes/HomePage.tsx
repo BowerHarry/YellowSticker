@@ -185,7 +185,10 @@ export const HomePage = () => {
               </div>
               <h3 className="step-card__title">Pick a show</h3>
               <p className="step-card__body">
-                Choose a production we cover and we&apos;ll start watching its box office.
+                <span className="step-card__copy-desktop">
+                  Choose a production we cover and we&apos;ll start watching its box office.
+                </span>
+                <span className="step-card__copy-mobile">Choose a production we cover</span>
               </p>
             </article>
 
@@ -203,27 +206,64 @@ export const HomePage = () => {
               </div>
               <h3 className="step-card__title">Subscribe</h3>
               <p className="step-card__body">
-                £2 a month per show. Cancel anytime — full refund if we don&apos;t find tickets.
+                <span className="step-card__copy-desktop">
+                  £2 a month per show. Cancel anytime — full refund if we don&apos;t find tickets.
+                </span>
+                <span className="step-card__copy-mobile">£2 a month per show</span>
               </p>
             </article>
 
             <article className="step-card">
               <span className="step-card__num">3</span>
               <div className="step-card__visual" aria-hidden="true">
-                <div className="mock-alert">
-                  <div className="mock-alert__head">
-                    <span className="pill__dot" />
-                    Yellow Sticker · 14:02
+                <div className="step-mock step-mock--desktop">
+                  <div className="mock-alert">
+                    <div className="mock-alert__head">
+                      <span className="pill__dot" />
+                      Yellow Sticker · 14:02
+                    </div>
+                    <p className="mock-alert__title">
+                      <b>3 standing tickets</b> just dropped
+                    </p>
+                    <p className="mock-alert__msg">Tonight at the Sondheim — buy now from the box office.</p>
                   </div>
-                  <p className="mock-alert__title">
-                    <b>3 standing tickets</b> just dropped
-                  </p>
-                  <p className="mock-alert__msg">Tonight at the Sondheim — buy now from the box office.</p>
+                </div>
+                <div className="step-mock step-mock--mobile">
+                  <div className="phone-push">
+                    <div className="phone-push__top">
+                      <span className="phone-push__icon">YS</span>
+                      <div className="phone-push__meta">
+                        <span className="phone-push__app">Yellow Sticker</span>
+                        <span className="phone-push__time">now</span>
+                      </div>
+                    </div>
+                    <p className="phone-push__title">
+                      <strong>Standing tickets</strong> just dropped
+                    </p>
+                    <p className="phone-push__sub">Tap to open · tonight</p>
+                    <svg
+                      className="phone-push__glyph"
+                      width={28}
+                      height={14}
+                      viewBox="0 0 28 14"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path
+                        fill="rgba(255,214,10,0.35)"
+                        d="M14 1c3 2 6 5 6 9v3H8v-3c0-4 3-7 6-9z"
+                      />
+                      <circle cx={14} cy={12} r={1.5} fill="rgba(255,214,10,0.9)" />
+                    </svg>
+                  </div>
                 </div>
               </div>
               <h3 className="step-card__title">Get notified</h3>
               <p className="step-card__body">
-                Email or Telegram the moment same-day standing tickets appear.
+                <span className="step-card__copy-desktop">
+                  Email or Telegram the moment same-day standing tickets appear.
+                </span>
+                <span className="step-card__copy-mobile">Alerted when tickets available</span>
               </p>
             </article>
           </div>

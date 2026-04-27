@@ -1034,6 +1034,134 @@ p + p { margin-top: 0.75rem; }
   margin: 0;
 }
 
+/* Step 3: mobile-only “phone push” (CSS + inline SVG) */
+.step-mock--mobile {
+  display: none;
+}
+
+.step-card__body .step-card__copy-desktop {
+  display: inline;
+}
+
+.step-card__body .step-card__copy-mobile {
+  display: none;
+}
+
+.phone-push {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border-radius: 14px;
+  padding: 0.4rem 0.45rem 0.5rem;
+  background:
+    linear-gradient(180deg, rgba(48, 48, 52, 0.98) 0%, rgba(20, 20, 24, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 10px 28px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.phone-push::before {
+  content: '';
+  position: absolute;
+  top: 0.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2.1rem;
+  height: 0.2rem;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+
+.phone-push__top {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+  margin-top: 0.15rem;
+  margin-bottom: 0.32rem;
+  position: relative;
+  z-index: 1;
+}
+
+.phone-push__icon {
+  width: 1.32rem;
+  height: 1.32rem;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--yellow-strong), var(--yellow));
+  color: var(--yellow-fg);
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.phone-push__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem;
+}
+
+.phone-push__app {
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phone-push__time {
+  font-size: 0.48rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.phone-push__title {
+  margin: 0;
+  position: relative;
+  z-index: 1;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.phone-push__title strong {
+  color: var(--yellow);
+  font-weight: 700;
+}
+
+.phone-push__sub {
+  margin: 0.2rem 0 0;
+  position: relative;
+  z-index: 1;
+  font-size: 0.5rem;
+  line-height: 1.3;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.phone-push__glyph {
+  position: absolute;
+  right: 0.2rem;
+  bottom: 0.15rem;
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 0;
+}
+
 @media (max-width: 720px) {
   .steps {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1071,6 +1199,12 @@ p + p { margin-top: 0.75rem; }
     text-align: center;
     width: 100%;
     max-width: 100%;
+  }
+  .step-card__body .step-card__copy-desktop {
+    display: none;
+  }
+  .step-card__body .step-card__copy-mobile {
+    display: block;
   }
   .mock-tile {
     padding: 0.28rem;
@@ -1148,36 +1282,44 @@ p + p { margin-top: 0.75rem; }
     flex-shrink: 0;
     padding-bottom: 0.05rem;
   }
-  /* Step 3: reserve space under step badge + readable notification block */
+  .step-card:nth-child(3) .step-mock--desktop {
+    display: none;
+  }
+  .step-card:nth-child(3) .step-mock--mobile {
+    display: flex;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+  }
   .step-card:nth-child(3) .step-card__visual {
     display: flex;
     flex-direction: column;
-    padding: 1.65rem 0.26rem 0.34rem;
+    padding: 1.45rem 0.22rem 0.3rem;
     align-items: stretch;
     justify-content: flex-start;
   }
-  .step-card:nth-child(3) .mock-alert {
-    flex: 1 1 auto;
-    width: 100%;
-    min-height: 0;
-    justify-content: flex-start;
-    padding: 0.42rem 0.44rem 0.46rem;
-    gap: 0.35rem;
-    border-radius: 10px;
+  .step-card:nth-child(3) .phone-push {
+    font-size: inherit;
   }
-  .step-card:nth-child(3) .mock-alert__head {
-    flex-wrap: wrap;
-    font-size: 0.56rem;
-    line-height: 1.25;
-    opacity: 0.92;
+  .step-card:nth-child(3) .phone-push__title {
+    font-size: 0.58rem;
   }
-  .step-card:nth-child(3) .mock-alert__title {
-    font-size: 0.64rem;
-    line-height: 1.28;
+  .step-card:nth-child(3) .phone-push__sub {
+    font-size: 0.48rem;
   }
-  .step-card:nth-child(3) .mock-alert__msg {
-    font-size: 0.56rem;
-    line-height: 1.38;
+  .step-card:nth-child(3) .phone-push__app {
+    font-size: 0.52rem;
+  }
+  .step-card:nth-child(3) .phone-push__icon {
+    width: 1.2rem;
+    height: 1.2rem;
+    font-size: 0.48rem;
+  }
+  .step-card:nth-child(3) .phone-push__glyph {
+    width: 24px;
+    height: 12px;
   }
 }
 
