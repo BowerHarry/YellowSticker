@@ -154,6 +154,17 @@ export const HomePage = () => {
 
       <section ref={howItWorksSectionRef} className="section home-flow__panel" id="how-it-works">
         <div className="how-it-works-wrap">
+          <div className="section__head">
+            <div>
+              <p className="section__eyebrow">Three simple steps</p>
+              <h2 className="section__title">How it works</h2>
+              <p className="section__subtitle">
+                Pick a show, subscribe for £2 a month, and we&apos;ll alert you the moment same-day
+                standing tickets appear.
+              </p>
+            </div>
+          </div>
+
           <div className="steps">
             <article className="step-card">
               <span className="step-card__num">1</span>
