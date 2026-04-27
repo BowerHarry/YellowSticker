@@ -210,6 +210,7 @@ p + p { margin-top: 0.75rem; }
   font-size: 0.9rem;
   font-weight: 500;
   padding: 0.5rem 0.75rem;
+  white-space: nowrap;
   border-radius: var(--radius-sm);
   transition: color 0.15s ease, background 0.15s ease;
 }
@@ -222,6 +223,9 @@ p + p { margin-top: 0.75rem; }
 @media (max-width: 480px) {
   .site-header__text small { display: none; }
   .site-header__inner { padding: 0.625rem 1rem; gap: 0.5rem; }
+  .site-header__actions { gap: 0.125rem; }
+  .site-header__link { font-size: 0.8rem; padding: 0.45rem 0.42rem; }
+  .site-header .btn--small { padding: 0.58rem 0.82rem; font-size: 0.8rem; }
 }
 
 /* =========================================================
@@ -576,6 +580,13 @@ p + p { margin-top: 0.75rem; }
 @media (max-width: 480px) {
   .hero__cta { width: 100%; }
   .hero__cta .btn { flex: 1; min-width: 0; }
+  .hero__meta {
+    gap: 0.45rem;
+    justify-content: center;
+    text-align: center;
+  }
+  .hero__meta-sep { display: none; }
+  .alert-preview__floater--top { display: none; }
 }
 
 /* =========================================================
@@ -739,8 +750,9 @@ p + p { margin-top: 0.75rem; }
   .guarantee {
     grid-template-columns: 1fr;
     gap: 1.25rem;
-    padding: 1.25rem;
+    padding: 0;
   }
+  .guarantee__txn + .guarantee__txn { display: none; }
 }
 
 /* =========================================================
@@ -1897,8 +1909,12 @@ p + p { margin-top: 0.75rem; }
     margin: -0.5rem 0 -3rem;
   }
   .home-flow__panel {
-    min-height: auto;
-    padding: 2rem 0;
+    min-height: calc(100svh - 64px);
+    padding: 1.5rem 0;
+  }
+  .home-flow__panel--hero,
+  .home-flow__panel#how-it-works {
+    justify-content: center;
   }
   .home-flow__panel--hero,
   .home-flow__panel#how-it-works {
@@ -1906,8 +1922,12 @@ p + p { margin-top: 0.75rem; }
     padding-bottom: 2.25rem;
   }
   .home-flow__panel#productions {
+    min-height: auto;
     padding-top: 1rem;
   }
+  .steps { gap: 1rem; }
+  .step-card { gap: 0.7rem; }
+  .step-card__body { font-size: 0.85rem; line-height: 1.45; }
 }
 
 /* =========================================================
