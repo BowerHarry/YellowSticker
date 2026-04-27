@@ -588,11 +588,13 @@ p + p { margin-top: 0.75rem; }
   .hero__eyebrow { display: none; }
   .hero__meta {
     gap: 0.35rem;
-    justify-content: center;
-    text-align: center;
+    justify-content: flex-start;
+    text-align: left;
     flex-wrap: nowrap;
     font-size: clamp(0.62rem, 3vw, 0.74rem);
     letter-spacing: -0.01em;
+    max-width: 36rem;
+    opacity: 0.88;
   }
   .hero__meta-sep {
     display: block;
@@ -1110,48 +1112,72 @@ p + p { margin-top: 0.75rem; }
     font-size: 0.56rem;
     line-height: 1.35;
   }
-  /* Steps 1 & 3: fill the frame (posters / alert) more like the price tag in step 2 */
-  .step-card:nth-child(1) .step-card__visual,
+  /* Step 1: fixed poster frame + show line always visible (no flex-steal) */
+  .step-card:nth-child(1) .step-card__visual {
+    display: flex;
+    flex-direction: column;
+    padding: 0.3rem 0.28rem 0.3rem;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+  .step-card:nth-child(1) .mock-tile {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    padding: 0.28rem;
+    gap: 0.38rem;
+    justify-content: flex-start;
+  }
+  .step-card:nth-child(1) .mock-tile__poster {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    min-height: 0;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .step-card:nth-child(1) .mock-tile__poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
+  }
+  .step-card:nth-child(1) .mock-tile__text {
+    flex: 0 0 auto;
+    flex-shrink: 0;
+    padding-bottom: 0.05rem;
+  }
+  /* Step 3: reserve space under step badge + readable notification block */
   .step-card:nth-child(3) .step-card__visual {
     display: flex;
     flex-direction: column;
-    padding: 0.18rem;
+    padding: 1.65rem 0.26rem 0.34rem;
     align-items: stretch;
-    justify-content: stretch;
-  }
-  .step-card:nth-child(1) .mock-tile {
-    flex: 1;
-    width: 100%;
-    min-height: 0;
-    height: 100%;
-    padding: 0.2rem;
-    justify-content: space-between;
-  }
-  .step-card:nth-child(1) .mock-tile__poster {
-    flex: 1 1 auto;
-    min-height: 3.4rem;
-    width: 100%;
-    aspect-ratio: auto;
-  }
-  .step-card:nth-child(1) .mock-tile__poster img {
-    min-height: 100%;
-    object-fit: cover;
-    object-position: center;
+    justify-content: flex-start;
   }
   .step-card:nth-child(3) .mock-alert {
-    flex: 1;
+    flex: 1 1 auto;
     width: 100%;
     min-height: 0;
-    height: 100%;
-    justify-content: center;
-    padding: 0.45rem 0.4rem;
-    gap: 0.3rem;
+    justify-content: flex-start;
+    padding: 0.42rem 0.44rem 0.46rem;
+    gap: 0.35rem;
+    border-radius: 10px;
+  }
+  .step-card:nth-child(3) .mock-alert__head {
+    flex-wrap: wrap;
+    font-size: 0.56rem;
+    line-height: 1.25;
+    opacity: 0.92;
   }
   .step-card:nth-child(3) .mock-alert__title {
-    font-size: 0.68rem;
+    font-size: 0.64rem;
+    line-height: 1.28;
   }
   .step-card:nth-child(3) .mock-alert__msg {
-    font-size: 0.58rem;
+    font-size: 0.56rem;
+    line-height: 1.38;
   }
 }
 
@@ -2151,11 +2177,12 @@ p + p { margin-top: 0.75rem; }
     font-size: clamp(0.63rem, 3vw, 0.76rem);
     gap: 0.34rem;
     flex-wrap: nowrap;
-    justify-content: center;
+    justify-content: flex-start;
     width: 100%;
-    max-width: 100%;
+    max-width: 36rem;
     margin-top: 1.5rem;
-    align-self: center;
+    align-self: flex-start;
+    opacity: 0.88;
   }
   .hero__meta span {
     white-space: nowrap;
