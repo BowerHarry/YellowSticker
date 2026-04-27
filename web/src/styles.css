@@ -410,6 +410,10 @@ p + p { margin-top: 0.75rem; }
   color: var(--text-muted);
 }
 
+.hero__meta span {
+  white-space: nowrap;
+}
+
 .hero__meta-sep {
   width: 4px;
   height: 4px;
@@ -749,6 +753,9 @@ p + p { margin-top: 0.75rem; }
 .guarantee__txn-amount--out { color: var(--text-muted); }
 
 @media (max-width: 720px) {
+  .hero__visual { display: none; }
+  .hero__copy { max-width: 100%; }
+  .hero__title { max-width: 11ch; }
   .guarantee {
     grid-template-columns: 1fr;
     gap: 1.25rem;
@@ -1932,6 +1939,10 @@ p + p { margin-top: 0.75rem; }
   padding: 0;
 }
 
+.home-flow .section {
+  margin-top: 0;
+}
+
 /* Slightly bias key panels upward to reduce empty space at the top. */
 .home-flow__panel--hero,
 .home-flow__panel#how-it-works {
@@ -1955,23 +1966,30 @@ p + p { margin-top: 0.75rem; }
     margin: -0.5rem 0 -3rem;
   }
   .home-flow__panel {
-    min-height: calc(100svh - 64px);
-    padding: 0.85rem 0;
+    min-height: auto;
+    padding: 0.5rem 0;
   }
   .home-flow__panel--hero,
   .home-flow__panel#how-it-works {
     justify-content: center;
     scroll-margin-top: 64px;
   }
-  .home-flow__panel--hero,
+  .home-flow__panel--hero {
+    min-height: calc(100svh - 64px);
+  }
   .home-flow__panel#how-it-works {
+    justify-content: flex-start;
+    padding-top: 0.25rem;
+    padding-bottom: 0.75rem;
+  }
+  .home-flow__panel--hero {
     padding-top: 0.5rem;
     padding-bottom: 1rem;
   }
   .home-flow__panel#how-it-works { gap: 0.7rem; }
   .home-flow__panel#productions {
     min-height: auto;
-    padding-top: 1rem;
+    padding-top: 0;
   }
   .hero { gap: 1.15rem; }
   .hero__subtitle { font-size: 1.02rem; line-height: 1.45; }
