@@ -1,5 +1,7 @@
 # Development and deployment
 
+How to run Supabase locally, deploy Edge Functions and secrets, and ship the web app — aimed at whoever operates this repo (typically you).
+
 ## Prerequisites
 
 - Node 18+ for `web/`
@@ -38,9 +40,11 @@ supabase secrets set BACKEND_API_SECRET_KEY="sb_secret_..."   # Dashboard → AP
 ```bash
 cd web
 npm install
-cp ../docs/env.sample .env.local   # then fill Vite env vars
+cp env.sample .env.local   # Vite `VITE_*` keys; see comments at top of `web/env.sample`
 npm run dev
 ```
+
+The full backend + operations variable list is in [`env.sample`](./env.sample) (repo root `docs/env.sample` when working from `docs/`).
 
 ## Stripe test vs live
 

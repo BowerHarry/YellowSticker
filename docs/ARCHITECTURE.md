@@ -1,5 +1,7 @@
 # Architecture
 
+Documentation for **maintainers**: how traffic flows between the SPA, Stripe, Supabase Edge Functions, Resend/Telegram, and the Firefox extension scraper.
+
 ## Data flow
 
 ```

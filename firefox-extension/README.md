@@ -21,5 +21,5 @@ Use **launchd** (macOS) or your OS scheduler to open Firefox at login so the ext
 
 ## Further reading
 
-- System context: [`docs/architecture.md`](../docs/architecture.md)  
+- System context: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)  
 - Secrets and rotation: [`docs/SECRETS.md`](../docs/SECRETS.md)
