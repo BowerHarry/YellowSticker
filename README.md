@@ -77,8 +77,6 @@ Together this is an **end-to-end subscription SaaS**: landing → pay → notify
 
 ## Documentation (technical — maintainers)
 
-Written for **future-you** (and anyone operating the stack): env vars, deploy steps, Stripe test/live, scraper secrets.
-
 | Doc | Contents |
 |-----|----------|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | End-to-end data flow: web ↔ Stripe ↔ Supabase ↔ extension ↔ ticketing APIs |
@@ -91,5 +89,3 @@ Written for **future-you** (and anyone operating the stack): env vars, deploy st
 | [`docs/env.sample`](docs/env.sample) | Environment variable template (no secrets) |
 
 **Getting started:** clone → [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) → extension [`firefox-extension/README.md`](firefox-extension/README.md).
-
-**Security:** never commit Supabase **secret** keys, Stripe **secret** keys, or webhook signing secrets. Browser/extension only use **publishable** keys — see [`docs/SECRETS.md`](docs/SECRETS.md).
