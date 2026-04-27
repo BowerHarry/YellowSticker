@@ -225,9 +225,9 @@ export const HomePage = () => {
             <div className="guarantee__copy">
               <span className="guarantee__eyebrow">Money-back guarantee</span>
               <h3 className="guarantee__title">
-                No alerts<span className="guarantee__title-dot" aria-hidden="true">
-                  ●
-                </span>
+                No alerts{' '}
+                <span className="guarantee__title-sep" aria-hidden="true" />
+                {' '}
                 no charge.
               </h3>
               <p className="guarantee__text">
