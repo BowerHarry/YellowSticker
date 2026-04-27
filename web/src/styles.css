@@ -658,6 +658,13 @@ p + p { margin-top: 0.75rem; }
   color: var(--text);
 }
 
+.guarantee__title-dot {
+  margin: 0 0.25rem;
+  color: var(--yellow);
+  opacity: 0.85;
+  font-weight: 700;
+}
+
 .guarantee__text {
   margin: 0.15rem 0 0;
   font-size: 0.95rem;
@@ -1019,43 +1026,68 @@ p + p { margin-top: 0.75rem; }
 @media (max-width: 720px) {
   .steps {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.45rem;
+    gap: 0.62rem;
+    align-items: stretch;
   }
   .step-card {
-    gap: 0.4rem;
-    padding: 0.2rem 0.05rem 0;
+    gap: 0.58rem;
+    padding: 0.35rem 0.06rem 0;
   }
   .step-card__num {
-    top: 0.3rem;
-    left: 0.3rem;
-    width: 1.35rem;
-    height: 1.35rem;
-    font-size: 0.72rem;
+    top: 0.42rem;
+    left: 0.42rem;
+    width: 1.58rem;
+    height: 1.58rem;
+    font-size: 0.8rem;
+    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.4);
   }
   .step-card__visual {
-    aspect-ratio: 1.35 / 1;
-    padding: 0.38rem;
+    aspect-ratio: 4 / 5;
+    min-height: 7.75rem;
+    padding: 0.5rem;
+    border-radius: var(--radius-lg);
   }
   .step-card__title {
-    font-size: 0.82rem;
-    line-height: 1.15;
+    font-size: clamp(0.84rem, 3.5vw, 0.98rem);
+    line-height: 1.18;
+    text-align: center;
   }
   .step-card__body { display: none; }
   .mock-tile {
-    padding: 0.28rem;
-    gap: 0.28rem;
+    padding: 0.4rem;
+    gap: 0.4rem;
+    border-radius: 10px;
   }
-  .mock-tile__text span { display: none; }
+  .mock-tile__text strong {
+    font-size: clamp(0.68rem, 2.8vw, 0.78rem);
+  }
+  .mock-tile__text span { display: block; font-size: 0.58rem; }
   .mock-tag {
-    padding: 0.52rem 0.78rem 0.48rem 1.05rem;
-    gap: 0.15rem;
+    padding: 0.75rem 0.95rem 0.7rem 1.2rem;
+    gap: 0.25rem;
   }
-  .mock-tag__value { font-size: 1.45rem; }
-  .mock-tag__currency { font-size: 0.75rem; }
-  .mock-tag__period { font-size: 0.52rem; }
-  .mock-tag__label { font-size: 0.42rem; letter-spacing: 0.08em; }
-  .mock-alert { padding: 0.38rem 0.42rem; }
-  .mock-alert__msg { display: none; }
+  .mock-tag__value { font-size: clamp(1.65rem, 8.2vw, 2.05rem); }
+  .mock-tag__currency { font-size: 0.9rem; }
+  .mock-tag__period { font-size: 0.6rem; }
+  .mock-tag__label {
+    font-size: clamp(0.45rem, 2.1vw, 0.53rem);
+    letter-spacing: 0.1em;
+  }
+  .mock-alert {
+    padding: 0.5rem 0.52rem;
+    border-radius: 12px;
+  }
+  .mock-alert__head {
+    font-size: 0.72rem;
+  }
+  .mock-alert__title {
+    font-size: clamp(0.75rem, 3.1vw, 0.85rem);
+  }
+  .mock-alert__msg {
+    display: block;
+    font-size: 0.64rem;
+    line-height: 1.35;
+  }
 }
 
 /* =========================================================
@@ -1995,14 +2027,63 @@ p + p { margin-top: 0.75rem; }
     margin-bottom: 3.25rem;
   }
   .home-flow__panel#how-it-works {
-    justify-content: center;
+    justify-content: stretch;
+    align-items: stretch;
     min-height: calc(100svh - 64px);
     scroll-margin-top: 0;
-    padding: 1rem 0 1.75rem;
+    padding: 0.75rem 0 1.35rem;
     margin-bottom: 3.5rem;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
   }
-  .home-flow__panel#how-it-works { gap: 0.65rem; }
+
+  /* Fill the viewport: pin steps row up, guarantee block down — less empty vertical band */
+  #how-it-works .how-it-works-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: clamp(1rem, 4vw, 1.75rem);
+    width: 100%;
+    min-height: 100%;
+    padding-inline: env(safe-area-inset-left), env(safe-area-inset-right);
+  }
+
+  #how-it-works .steps {
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  #how-it-works .guarantee {
+    flex-shrink: 0;
+    margin-top: auto;
+    padding-block: 0.75rem;
+  }
+
+  #how-it-works .guarantee .guarantee__title {
+    font-size: clamp(1.42rem, 5vw, 1.72rem);
+    line-height: 1.22;
+  }
+
+  #how-it-works .guarantee .guarantee__eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+  }
+
+  #how-it-works .guarantee .guarantee__cta {
+    margin-top: 0.65rem;
+    font-size: 0.94rem;
+  }
+
+  #how-it-works .guarantee .guarantee__copy {
+    gap: 0.55rem;
+  }
+
+  .home-flow__panel#how-it-works {
+    gap: 0;
+  }
+
   .home-flow__panel#productions {
     min-height: auto;
     scroll-margin-top: 0;

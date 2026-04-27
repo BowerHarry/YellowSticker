@@ -224,7 +224,12 @@ export const HomePage = () => {
           >
             <div className="guarantee__copy">
               <span className="guarantee__eyebrow">Money-back guarantee</span>
-              <h3 className="guarantee__title">No alerts, no charge.</h3>
+              <h3 className="guarantee__title">
+                No alerts<span className="guarantee__title-dot" aria-hidden="true">
+                  ●
+                </span>
+                no charge.
+              </h3>
               <p className="guarantee__text">
                 If we don&apos;t spot any standing tickets before your next renewal, your subscription
                 is refunded automatically — no email, no form.
