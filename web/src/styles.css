@@ -2242,6 +2242,15 @@ p + p { margin-top: 0.75rem; }
   padding-bottom: 2.75rem;
 }
 
+/* Laptop/desktop: when opening #how-it-works from the button, keep clear space
+   between the header and the block (hash scroll + scroll-padding don’t always
+   leave enough room; scroll-margin is respected for fragment navigation). */
+@media (min-width: 721px) {
+  .home-flow__panel#how-it-works {
+    scroll-margin-top: clamp(1.75rem, 5vh, 3.5rem);
+  }
+}
+
 /* Productions: anchor content to top of the visible viewport (below the
    sticky header). No vertical centering — title at the top. */
 .home-flow__panel#productions {
