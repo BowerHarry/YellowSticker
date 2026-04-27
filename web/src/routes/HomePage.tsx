@@ -12,6 +12,7 @@ export const HomePage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const productionsSectionRef = useRef<HTMLElement>(null);
+  const howItWorksSectionRef = useRef<HTMLElement>(null);
   const { productions, loading, error } = useProductions();
   const { productions: comingSoon, loading: comingSoonLoading } = useComingSoonProductions();
   const [activeTab, setActiveTab] = useState<'now-showing' | 'coming-soon'>('now-showing');
@@ -32,23 +33,44 @@ export const HomePage = () => {
   }, [location.hash]);
 
   useLayoutEffect(() => {
-    if (location.hash !== '#productions') return;
     const nav = performance.getEntriesByType?.('navigation')?.[0] as PerformanceNavigationTiming | undefined;
     if (nav?.type === 'reload') return;
     const mq = window.matchMedia('(max-width: 720px)');
     if (!mq.matches) return;
-    const section = productionsSectionRef.current;
-    if (!section) return;
     const header = document.querySelector('.site-header') as HTMLElement | null;
     const headerH = header?.getBoundingClientRect().height ?? 64;
-    /** Extra scroll so "Productions we cover" clears any tail from the section above. */
-    const extra = 88;
-    const align = () => {
-      const top = section.getBoundingClientRect().top + window.scrollY;
-      window.scrollTo({ top: Math.max(0, top - headerH + extra), behavior: 'auto' });
+
+    const align = (el: HTMLElement) => {
+      const y = el.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: Math.max(0, y - headerH), behavior: 'auto' });
     };
-    align();
-    requestAnimationFrame(align);
+
+    if (location.hash === '#how-it-works') {
+      const section = howItWorksSectionRef.current;
+      if (!section) return;
+      const run = () => {
+        if (!howItWorksSectionRef.current) return;
+        align(howItWorksSectionRef.current);
+      };
+      run();
+      requestAnimationFrame(run);
+      setTimeout(run, 120);
+      return;
+    }
+
+    if (location.hash === '#productions') {
+      if (!productionsSectionRef.current) return;
+      const run = () => {
+        const sec = productionsSectionRef.current;
+        if (!sec) return;
+        const target =
+          (sec.querySelector('.section__eyebrow') as HTMLElement | null) ?? sec;
+        align(target);
+      };
+      run();
+      requestAnimationFrame(run);
+      setTimeout(run, 120);
+    }
   }, [location.hash]);
 
   const allKnown = [...productions, ...comingSoon];
@@ -93,10 +115,10 @@ export const HomePage = () => {
               </a>
             </div>
             <div className="hero__meta">
-              <span>Email or Telegram alerts</span>
-              <span className="hero__meta-sep" />
+              <span>Email or Telegram</span>
+              <span className="hero__meta-sep" aria-hidden="true" />
               <span>Cancel anytime</span>
-              <span className="hero__meta-sep" />
+              <span className="hero__meta-sep" aria-hidden="true" />
               <span>No alerts, no charge</span>
             </div>
           </div>
@@ -130,7 +152,7 @@ export const HomePage = () => {
         </div>
       </section>
 
-      <section className="section home-flow__panel" id="how-it-works">
+      <section ref={howItWorksSectionRef} className="section home-flow__panel" id="how-it-works">
         <div className="how-it-works-wrap">
           <div className="steps">
             <article className="step-card">
