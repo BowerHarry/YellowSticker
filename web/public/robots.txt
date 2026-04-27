@@ -1,0 +1,8 @@
+# Yellow Sticker — https://yellowsticker.uk/
+User-agent: *
+Allow: /
+
+# Operator dashboard — not intended for indexing
+Disallow: /monitor
+
+Sitemap: https://yellowsticker.uk/sitemap.xml

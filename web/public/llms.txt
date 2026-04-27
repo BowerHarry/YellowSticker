@@ -1,0 +1,23 @@
+# Yellow Sticker — for people and automated tools reading a short site summary
+
+# Site
+https://yellowsticker.uk/
+
+# Name
+Yellow Sticker
+
+# What we are
+Yellow Sticker is a UK subscription service that watches official West End theatre box office pages for same-day standing ticket availability. We email or Telegram you the moment standing tickets appear; you buy from the venue’s real checkout at the same public price. We are not the box office or a ticket resale market.
+
+# Where
+West End / London theatre, per production you choose to track.
+
+# Price
+£2 per month per production (or a one-month option), cancel anytime; money-back if we find no standing tickets in a paid period per our guarantee.
+
+# Key pages
+- Home: https://yellowsticker.uk/
+- FAQs: https://yellowsticker.uk/faq
+
+# Contact
+See the website footer and emails from our service.

@@ -49,6 +49,44 @@
       content="Be first when standing tickets drop. £2 a month per show. Cancel anytime."
     />
     <meta name="twitter:image" content="https://yellowsticker.uk/og-image.png?v=7" />
+
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "name": "Yellow Sticker",
+            "url": "https://yellowsticker.uk/",
+            "description": "Same-day standing ticket alerts for London West End theatre. Monitors official box offices and notifies you by email or Telegram when standing seats appear; you buy from the venue.",
+            "inLanguage": "en-GB",
+            "publisher": { "@type": "Organization", "name": "Yellow Sticker", "url": "https://yellowsticker.uk/" }
+          },
+          {
+            "@type": "Organization",
+            "name": "Yellow Sticker",
+            "url": "https://yellowsticker.uk/",
+            "logo": "https://yellowsticker.uk/yellow-sticker.svg"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "Yellow Sticker",
+            "applicationCategory": "LifestyleApplication",
+            "operatingSystem": "Web",
+            "offers": {
+              "@type": "Offer",
+              "price": "2.00",
+              "priceCurrency": "GBP",
+              "description": "Per production per month (UK); optional one-month billing.",
+              "url": "https://yellowsticker.uk/"
+            },
+            "description": "Subscription alerts when same-day standing tickets look available on official West End theatre box offices."
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

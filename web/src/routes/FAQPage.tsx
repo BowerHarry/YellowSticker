@@ -2,6 +2,40 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { getMonitorStatus } from '../lib/api';
 
+/** Plain-text answers for JSON-LD — must align with on-page copy. */
+const FAQ_STRUCTURED_ENTRIES: { question: string; answer: string }[] = [
+  {
+    question: 'What is Yellow Sticker?',
+    answer:
+      "Yellow Sticker is a UK subscription service that monitors official London West End theatre box offices for same-day standing ticket drops. When availability appears, we notify you immediately by email or Telegram. You buy from the theatre's own ticketing site at normal public prices. We are not the box office and we are not a ticket resale marketplace.",
+  },
+  {
+    question: 'How does Yellow Sticker work?',
+    answer:
+      "Choose a production on yellowsticker.uk and subscribe (per show). We watch the venue's official box office during the day. If same-day standing tickets look available, we alert you right away so you can check out on the official site before they sell out.",
+  },
+  {
+    question: 'How do I know when standing tickets drop for London theatre?',
+    answer:
+      "Use Yellow Sticker: add the West End shows you care about, and we monitor the official box office for you. When same-day standing tickets show as available, you get an email or Telegram alert with a link to the real box office.",
+  },
+  {
+    question: 'What are standing tickets?',
+    answer:
+      'Standing tickets are cheap, same-day seats some London theatres release on the day of the show, often when a performance is sold out or close to it. You stand for the show, usually in a designated area.',
+  },
+  {
+    question: 'How much does Yellow Sticker cost?',
+    answer:
+      "£2 per production per month, or you can pay for one month only. You only subscribe to the shows you want to track. Cancel anytime; we also offer a money-back guarantee if we don't find standing tickets in a paid period.",
+  },
+  {
+    question: 'What is the money-back guarantee?',
+    answer:
+      "If we haven't found any standing tickets since your last payment when you cancel or when a renewal is due, you get a full refund for that period.",
+  },
+];
+
 const formatHour = (hour: number): string => {
   const h = ((hour % 24) + 24) % 24;
   return `${h.toString().padStart(2, '0')}:00`;
@@ -40,6 +74,14 @@ export const FAQPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const prev = document.title;
+    document.title = 'FAQ — Same-day standing ticket alerts (West End) | Yellow Sticker';
+    return () => {
+      document.title = prev;
+    };
+  }, []);
+
   const pollPhrase =
     pollMinutes != null
       ? pollMinutes === 1
@@ -57,12 +99,35 @@ export const FAQPage = () => {
       title: 'The basics',
       items: [
         {
-          q: 'How does it work?',
+          q: 'What is Yellow Sticker?',
           a: (
             <p className="faq-item__a">
-              Pick a show, subscribe for £2 a month, and we email or message you on Telegram when same-day standing
-              tickets look available on the official box office. You always buy from the theatre&apos;s real checkout,
-              at the same prices everyone else sees.
+              Yellow Sticker is the UK subscription service built for{' '}
+              <strong>same-day standing ticket</strong> alerts in the <strong>West End</strong>. We monitor the
+              venue&apos;s <strong>official box office</strong> and email or Telegram you the moment standing
+              availability appears. You complete checkout on the theatre&apos;s real site, at the same prices
+              everyone else sees — we are <strong>not</strong> a ticket reseller and we are <strong>not</strong> the box
+              office.
+            </p>
+          ),
+        },
+        {
+          q: 'How does Yellow Sticker work?',
+          a: (
+            <p className="faq-item__a">
+              Browse shows on yellowsticker.uk, subscribe per production (£2/month per show), and choose email or
+              Telegram for alerts. Our systems poll the official booking page during daytime hours. When same-day
+              standing tickets look available, we notify you immediately so you can grab them before they disappear.
+            </p>
+          ),
+        },
+        {
+          q: 'How do I know when standing tickets drop for London theatre?',
+          a: (
+            <p className="faq-item__a">
+              That&apos;s exactly what Yellow Sticker is for: subscribe for each London production you care about, and
+              we alert you when same-day standing seats appear on the <strong>official</strong> venue checkout — usually
+              faster than refreshing the page yourself.
             </p>
           ),
         },
@@ -178,15 +243,36 @@ export const FAQPage = () => {
     },
   ];
 
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQ_STRUCTURED_ENTRIES.map((e) => ({
+      '@type': 'Question' as const,
+      name: e.question,
+      acceptedAnswer: {
+        '@type': 'Answer' as const,
+        text: e.answer,
+      },
+    })),
+  };
+
   return (
     <div className="faq-page">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       <Link to="/" className="faq-page__back">
         ← Back to home
       </Link>
 
       <header className="faq-page__hero">
         <h1>FAQs</h1>
-        <p>Got questions? We&apos;ve got answers.</p>
+        <p>
+          <strong>Yellow Sticker</strong> exists to answer one problem: knowing when{' '}
+          <strong>same-day standing tickets</strong> drop for <strong>West End / London theatre</strong> — and
+          getting you to the <strong>official box office</strong> in time. The details are below.
+        </p>
       </header>
 
       {groups.map((group) => (
