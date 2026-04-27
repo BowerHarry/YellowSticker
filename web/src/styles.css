@@ -583,7 +583,8 @@ p + p { margin-top: 0.75rem; }
    How it works wrapper
    ========================================================= */
 .how-it-works-wrap {
-  max-width: 960px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 
