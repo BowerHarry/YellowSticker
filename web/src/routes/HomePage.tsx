@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useProductions } from '../hooks/useProductions';
 import { useComingSoonProductions } from '../hooks/useComingSoonProductions';
 import { ProductionCard } from '../components/ProductionCard';
@@ -10,15 +10,45 @@ const matchesProduction = (name: string | undefined | null, needle: string) =>
 
 export const HomePage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const productionsSectionRef = useRef<HTMLElement>(null);
   const { productions, loading, error } = useProductions();
   const { productions: comingSoon, loading: comingSoonLoading } = useComingSoonProductions();
   const [activeTab, setActiveTab] = useState<'now-showing' | 'coming-soon'>('now-showing');
 
+  useLayoutEffect(() => {
+    if (location.pathname !== '/') return;
+    const nav = performance.getEntriesByType?.('navigation')?.[0] as PerformanceNavigationTiming | undefined;
+    if (nav?.type !== 'reload') return;
+    navigate({ pathname: location.pathname, search: location.search, hash: '' }, { replace: true });
+    window.scrollTo(0, 0);
+  }, [location.pathname, location.search, navigate]);
+
   useEffect(() => {
-    // Ensure home opens at the hero unless an explicit hash target is present.
-    if (!location.hash) {
-      window.scrollTo({ top: 0, behavior: 'auto' });
-    }
+    if (location.hash) return;
+    const nav = performance.getEntriesByType?.('navigation')?.[0] as PerformanceNavigationTiming | undefined;
+    if (nav?.type === 'reload') return;
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [location.hash]);
+
+  useLayoutEffect(() => {
+    if (location.hash !== '#productions') return;
+    const nav = performance.getEntriesByType?.('navigation')?.[0] as PerformanceNavigationTiming | undefined;
+    if (nav?.type === 'reload') return;
+    const mq = window.matchMedia('(max-width: 720px)');
+    if (!mq.matches) return;
+    const section = productionsSectionRef.current;
+    if (!section) return;
+    const header = document.querySelector('.site-header') as HTMLElement | null;
+    const headerH = header?.getBoundingClientRect().height ?? 64;
+    /** Extra scroll so "Productions we cover" clears any tail from the section above. */
+    const extra = 88;
+    const align = () => {
+      const top = section.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: Math.max(0, top - headerH + extra), behavior: 'auto' });
+    };
+    align();
+    requestAnimationFrame(align);
   }, [location.hash]);
 
   const allKnown = [...productions, ...comingSoon];
@@ -208,7 +238,7 @@ export const HomePage = () => {
         </div>
       </section>
 
-      <section className="section home-flow__panel" id="productions">
+      <section ref={productionsSectionRef} className="section home-flow__panel" id="productions">
         <div className="section__head">
           <div>
             <p className="section__eyebrow">Productions we cover</p>
