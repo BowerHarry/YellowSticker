@@ -34,7 +34,9 @@
       content="Be first when standing tickets drop. £2 a month per show. Cancel anytime, refund if no tickets are found."
     />
     <meta property="og:url" content="https://yellowsticker.uk/" />
-    <meta property="og:image" content="https://yellowsticker.uk/og-image.png" />
+    <!-- Bump ?v when replacing og-image.png so caches (iMessage, Slack, etc.) refetch -->
+    <meta property="og:image" content="https://yellowsticker.uk/og-image.png?v=7" />
+    <meta property="og:image:secure_url" content="https://yellowsticker.uk/og-image.png?v=7" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Yellow Sticker — Be first when standing tickets drop." />
@@ -46,7 +48,7 @@
       name="twitter:description"
       content="Be first when standing tickets drop. £2 a month per show. Cancel anytime."
     />
-    <meta name="twitter:image" content="https://yellowsticker.uk/og-image.png" />
+    <meta name="twitter:image" content="https://yellowsticker.uk/og-image.png?v=7" />
   </head>
   <body>
     <div id="root"></div>
