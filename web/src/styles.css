@@ -309,7 +309,8 @@ p + p { margin-top: 0.75rem; }
   grid-template-columns: 1.05fr 0.95fr;
   align-items: center;
   gap: 3rem;
-  padding: 3.5rem 0 2.5rem;
+  padding: 0;
+  width: 100%;
 }
 
 .hero::before {
@@ -564,7 +565,7 @@ p + p { margin-top: 0.75rem; }
   .hero {
     grid-template-columns: 1fr;
     gap: 2rem;
-    padding: 2rem 0 1.5rem;
+    padding: 0;
   }
   .hero__copy { align-items: center; text-align: center; }
   .hero__title { max-width: 22ch; }
@@ -1860,33 +1861,40 @@ p + p { margin-top: 0.75rem; }
    (scroll-snap-type lives on <html> so the actual scroll
     container honours snap-align on these panels)
    ========================================================= */
+.home-flow {
+  /* Cancel out the page-shell top/bottom padding so each panel can be a
+     true 100dvh section flush with the sticky header. */
+  margin: -1rem 0 -5rem;
+}
+
 .home-flow__panel {
   scroll-snap-align: start;
-  scroll-margin-top: 64px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: calc(100dvh - 64px);
+  min-height: 100dvh;
   margin-top: 0;
-  padding: 2rem 0;
+  padding: 0;
 }
 
-.home-flow__panel--hero { padding-top: 1rem; }
-
-/* Productions can grow taller than the viewport — let it expand below the
-   initial snap point, but anchor the snap to its top. */
+/* Productions: anchor content to top of the visible viewport (below the
+   sticky header). No vertical centering — title at the top. */
 .home-flow__panel#productions {
   justify-content: flex-start;
-  padding-top: 3rem;
+  padding-top: 1.25rem;
+  padding-bottom: 3rem;
 }
 
 @media (max-width: 720px) {
+  .home-flow {
+    margin: -0.5rem 0 -3rem;
+  }
   .home-flow__panel {
     min-height: auto;
-    padding: 2.5rem 0;
+    padding: 2rem 0;
   }
   .home-flow__panel#productions {
-    padding-top: 2.5rem;
+    padding-top: 1rem;
   }
 }
 

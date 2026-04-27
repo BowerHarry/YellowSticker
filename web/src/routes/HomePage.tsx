@@ -5,12 +5,25 @@ import { useComingSoonProductions } from '../hooks/useComingSoonProductions';
 import { ProductionCard } from '../components/ProductionCard';
 import { getStorageUrl } from '../lib/supabaseClient';
 
+const matchesProduction = (name: string | undefined | null, needle: string) =>
+  Boolean(name && name.toLowerCase().includes(needle));
+
 export const HomePage = () => {
   const { productions, loading, error } = useProductions();
   const { productions: comingSoon, loading: comingSoonLoading } = useComingSoonProductions();
   const [activeTab, setActiveTab] = useState<'now-showing' | 'coming-soon'>('now-showing');
 
-  const featured = productions[0] ?? comingSoon[0];
+  const allKnown = [...productions, ...comingSoon];
+  const featured =
+    allKnown.find((p) => matchesProduction(p.name, 'hamilton')) ??
+    allKnown.find(
+      (p) =>
+        matchesProduction(p.name, 'les mis') ||
+        matchesProduction(p.name, 'misérables') ||
+        matchesProduction(p.name, 'miserables'),
+    ) ??
+    productions[0] ??
+    comingSoon[0];
   const featuredPoster = featured?.poster_url
     ? featured.poster_url.startsWith('http')
       ? featured.poster_url
@@ -19,59 +32,61 @@ export const HomePage = () => {
 
   return (
     <div className="home-flow">
-      <section className="hero home-flow__panel home-flow__panel--hero">
-        <div className="hero__copy">
-          <span className="hero__eyebrow">
-            <span className="hero__eyebrow-dot" />
-            Watching now · West End
-          </span>
-          <h1 className="hero__title">
-            Be first when <em>standing tickets</em> drop.
-          </h1>
-          <p className="hero__subtitle">
-            Yellow Sticker quietly watches official box offices and pings you the second same-day
-            standing tickets appear for the shows you care about.
-          </p>
-          <div className="hero__cta">
-            <a href="#productions" className="btn btn--large">
-              Browse productions
-            </a>
-            <a href="#how-it-works" className="btn btn--ghost btn--large">
-              How it works
-            </a>
-          </div>
-          <div className="hero__meta">
-            <span>Email or Telegram alerts</span>
-            <span className="hero__meta-sep" />
-            <span>Cancel anytime</span>
-            <span className="hero__meta-sep" />
-            <span>No alerts, no charge</span>
-          </div>
-        </div>
-
-        <div className="hero__visual" aria-hidden="true">
-          <div className="alert-preview">
-            <div className="alert-preview__floater alert-preview__floater--top">
-              <span className="pill__dot" />
-              Live · checking every 5 min
-            </div>
-            <div className="alert-preview__head">
-              <div className="alert-preview__avatar">YS</div>
-              <div className="alert-preview__sender">
-                <strong>Yellow Sticker</strong>
-                <span>via Telegram</span>
-              </div>
-              <span className="alert-preview__time">14:02</span>
-            </div>
-            <div className="alert-preview__body">
-              <p className="alert-preview__title">Standing tickets just dropped</p>
-              <p className="alert-preview__msg">
-                <b>3 standing tickets</b> released for tonight at the Sondheim Theatre. Buy now from the
-                official box office before they go.
-              </p>
-              <a href="#productions" className="alert-preview__cta">
-                Open box office →
+      <section className="home-flow__panel home-flow__panel--hero">
+        <div className="hero">
+          <div className="hero__copy">
+            <span className="hero__eyebrow">
+              <span className="hero__eyebrow-dot" />
+              Watching now · West End
+            </span>
+            <h1 className="hero__title">
+              Be first when <em>standing tickets</em> drop.
+            </h1>
+            <p className="hero__subtitle">
+              Yellow Sticker quietly watches official box offices and pings you the second same-day
+              standing tickets appear for the shows you care about.
+            </p>
+            <div className="hero__cta">
+              <a href="#productions" className="btn btn--large">
+                Browse productions
               </a>
+              <a href="#how-it-works" className="btn btn--ghost btn--large">
+                How it works
+              </a>
+            </div>
+            <div className="hero__meta">
+              <span>Email or Telegram alerts</span>
+              <span className="hero__meta-sep" />
+              <span>Cancel anytime</span>
+              <span className="hero__meta-sep" />
+              <span>No alerts, no charge</span>
+            </div>
+          </div>
+
+          <div className="hero__visual" aria-hidden="true">
+            <div className="alert-preview">
+              <div className="alert-preview__floater alert-preview__floater--top">
+                <span className="pill__dot" />
+                Live · checking every 5 min
+              </div>
+              <div className="alert-preview__head">
+                <div className="alert-preview__avatar">YS</div>
+                <div className="alert-preview__sender">
+                  <strong>Yellow Sticker</strong>
+                  <span>via Telegram</span>
+                </div>
+                <span className="alert-preview__time">14:02</span>
+              </div>
+              <div className="alert-preview__body">
+                <p className="alert-preview__title">Standing tickets just dropped</p>
+                <p className="alert-preview__msg">
+                  <b>3 standing tickets</b> released for tonight at the Sondheim Theatre. Buy now from
+                  the official box office before they go.
+                </p>
+                <a href="#productions" className="alert-preview__cta">
+                  Open box office →
+                </a>
+              </div>
             </div>
           </div>
         </div>
