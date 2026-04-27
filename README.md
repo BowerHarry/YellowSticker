@@ -59,7 +59,7 @@ Together this is an **end-to-end subscription SaaS**: landing → pay → notify
 
 <p align="center">
   <strong>Standing-ticket alert email (Resend)</strong><br/>
-  <img src="docs/readme/email-alert.jpeg" alt="Email notification standing tickets spotted with link to box office" width="780" />
+  <img src="docs/readme/email-alert.png" alt="Email notification standing tickets spotted with link to box office" width="780" />
 </p>
 
 ---
