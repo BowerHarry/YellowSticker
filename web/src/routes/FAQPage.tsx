@@ -163,6 +163,17 @@ export const FAQPage = () => {
             </p>
           ),
         },
+        {
+          q: 'How do I connect Telegram for alerts?',
+          a: (
+            <p className="faq-item__a">
+              If you pick Telegram (or email and Telegram) at checkout, your confirmation email includes a one-tap link
+              to connect our bot. Open it on the device where you use Telegram, then tap <strong>Start</strong> in the
+              chat — you only need to do this once per account. You can also use the <strong>Connect Telegram</strong>{' '}
+              link from your management page if you need to connect later.
+            </p>
+          ),
+        },
       ],
     },
   ];

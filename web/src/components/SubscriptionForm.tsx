@@ -78,9 +78,6 @@ export const SubscriptionForm = ({ production }: Props) => {
 
       <div className="form-field">
         <label>Notifications</label>
-        <p className="form-field__hint">
-          If you choose Telegram, your confirmation email includes a one-tap link to connect the bot.
-        </p>
         <NotificationPreferenceSelector
           value={preference}
           onChange={(value) => setValue('preference', value, { shouldValidate: true })}

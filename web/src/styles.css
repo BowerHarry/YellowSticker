@@ -314,7 +314,8 @@ p + p { margin-top: 0.75rem; }
   gap: 3rem;
   padding: 0;
   width: 100%;
-  overflow: clip;
+  /* Don’t clip ::before — hard edges read as a grey “card” on black. Feather in ::before instead. */
+  overflow: visible;
 }
 
 .hero::before {
@@ -328,6 +329,9 @@ p + p { margin-top: 0.75rem; }
   filter: blur(8px);
   pointer-events: none;
   z-index: 0;
+  /* Fade glow at bounds so it merges into page bg — avoids a visible rectangular silhouette */
+  -webkit-mask-image: radial-gradient(ellipse 72% 68% at 48% 42%, #000 32%, transparent 78%);
+  mask-image: radial-gradient(ellipse 72% 68% at 48% 42%, #000 32%, transparent 78%);
 }
 
 .hero__copy {
@@ -1996,6 +2000,10 @@ p + p { margin-top: 0.75rem; }
   margin: 0;
   color: var(--text-muted);
   font-size: 1rem;
+}
+
+.prod-detail__head .prod-detail__description {
+  margin-top: 0.25rem;
 }
 
 .prod-detail__form-card {

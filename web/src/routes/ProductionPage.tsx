@@ -72,6 +72,9 @@ export const ProductionPage = () => {
           <span className="pill prod-detail__price">£2 / month</span>
           <h1 className="prod-detail__title">{production.name}</h1>
           <p className="prod-detail__theatre">{production.theatre}</p>
+          {production.description && (
+            <p className="prod-detail__description">{production.description}</p>
+          )}
         </header>
 
         <article className="prod-detail__form-card">
@@ -102,9 +105,6 @@ export const ProductionPage = () => {
         </article>
 
         <div className="prod-detail__about">
-          {production.description && (
-            <p className="prod-detail__description">{production.description}</p>
-          )}
           <div className="stat-blocks">
             <div className="stat-block">
               <span className="stat-block__label">Last checked</span>
