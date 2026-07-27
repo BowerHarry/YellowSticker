@@ -150,7 +150,7 @@ extension is offline or just outside its configured active window.
 RLS is enabled on every table in `public` (`20260727120000_enable_rls.sql`):
 
 - **`productions`** has one policy — `select` for `anon` + `authenticated`. This is the only table either the web SPA or the extension queries directly, and both only read it. Writes with the publishable key are refused.
-- **`users`, `subscriptions`, `notification_logs`, `scrape_heartbeats`, `scraper_settings`** have **no policies at all**, deliberately: nothing outside the service role touches them, so anon gets nothing.
+- **`users`, `subscriptions`, `notification_logs`, `scrape_heartbeats`, `scraper_settings`** are deny-all: nothing outside the service role touches them, so the API roles get nothing. Each carries a single `using (false) with check (false)` policy (`20260728130000_explicit_deny_policies.sql`) that grants nothing — it exists to state the intent in the schema and to clear the `rls_enabled_no_policy` lint. To expose one of these later, add a policy *alongside* it; permissive policies are OR'd, so the deny-all one won't block it.
 
 Edge functions are unaffected throughout — they go through `adminClient` (`functions/_shared/db.ts`), and the service role bypasses RLS.
 
@@ -224,3 +224,4 @@ Expected: no rows. See [`SECRETS.md`](./SECRETS.md) if `app.settings.service_rol
 | `20260727120000_enable_rls.sql`                | enables RLS on every `public` table; public `select` policy on `productions`, deny-all elsewhere |
 | `20260727130000_lint_hardening.sql`            | drops the dead `invoke_scrape_tickets` + `_guarded` functions, pins `set_updated_at`'s `search_path`, restricts `get_database_size_bytes()` to `service_role`, removes the listable-bucket policy on `storage.objects` |
 | `20260728120000_drop_pg_net.sql`               | drops `pg_net` — unused once the cron invoker is gone (no webhooks, no cron jobs) |
+| `20260728130000_explicit_deny_policies.sql`    | no-op `using (false)` policies on the five deny-all tables, so the schema states the intent and the `rls_enabled_no_policy` lint clears |
