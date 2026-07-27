@@ -1,0 +1,54 @@
+-- Remove pg_net. Clears the last of the security lints
+-- ("Extension in Public": the extension is registered in `public`).
+--
+-- Relocating it was the obvious fix, but pg_net's API objects
+-- (`net.http_post`, the request/response tables) live in schema `net`, not in
+-- `public` — only the extension's registration row is in `public`. pg_net is
+-- also generally non-relocatable, so `alter extension … set schema` is
+-- unlikely to succeed. Dropping it is the change that actually resolves the
+-- lint, and it costs nothing here because nothing uses it:
+--
+--   * The only caller in this repo was `invoke_scrape_tickets`, dropped in
+--     `20260727130000_lint_hardening.sql`. Scraping runs from the Firefox
+--     extension → `report-scrape` edge function.
+--   * No Database Webhooks exist (webhooks are triggers calling
+--     `supabase_functions.http_request()`, which is built on pg_net) — checked
+--     against `pg_trigger`, no rows.
+--   * `cron.job` is empty, so no dashboard-created job invokes it.
+--   * `net.http_request_queue` was empty, so no in-flight requests are lost.
+--   * `net._http_response` held 24 rows, newest 2026-04-22 — the evening
+--     before the `20260423*` migrations removed the cron job. That table is
+--     not being auto-cleaned (April rows survived), so this is positive
+--     evidence of no calls since, not just an empty recent window.
+--   * A search of every function body in the database (`pg_proc.prosrc ilike
+--     '%net.http%'`) found only pg_net's own members plus Supabase's
+--     platform-managed `extensions.grant_pg_net_access` — no application code.
+--
+-- `extensions.grant_pg_net_access` is intentionally left alone: it belongs to
+-- the platform. Its body was checked — everything is wrapped in
+-- `if exists (select 1 from pg_event_trigger_ddl_commands() ev join
+-- pg_extension ext on ev.objid = ext.oid where ext.extname = 'pg_net')`, and
+-- its event trigger `issue_pg_net_access` fires on `ddl_command_end`. On a
+-- drop that join matches nothing (the pg_extension row is already gone), so
+-- the body never runs — here or on any later `create extension`. If pg_net is
+-- ever reinstalled it re-grants on its own.
+--
+-- Worth recording why this is more than tidiness: that same function grants
+-- `usage on schema net` to `anon` and `authenticated`, and on pg_net versions
+-- 0.2–0.11.0 also grants them `execute` on `net.http_get` / `net.http_post`
+-- as SECURITY DEFINER. Those are not reachable over the API today only
+-- because `net` is not one of PostgREST's exposed schemas. Dropping the
+-- extension removes the capability instead of depending on that setting.
+--
+-- Deliberately not `cascade`: if anything unexpected does depend on pg_net,
+-- this should fail loudly during `supabase db reset` rather than quietly
+-- removing the dependent object.
+--
+-- Not a one-way door — enabling Database Webhooks from the dashboard later
+-- re-creates pg_net automatically, in the schema the platform prefers.
+drop extension if exists pg_net;
+
+-- `20241114002_setup_cron.sql` still contains the original
+-- `create extension if not exists "pg_net"`. It is left as-is on purpose:
+-- applied migrations are history, and rewriting it would only desynchronise
+-- this project from the migration hashes.

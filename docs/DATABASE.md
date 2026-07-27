@@ -159,6 +159,40 @@ Two consequences worth remembering when adding features:
 - Any new browser-side read needs an explicit policy, or it silently returns zero rows.
 - RLS is row-level only. `productions` is selected with `*`, so every column on it — including `scraping_url`, `series_code`, `adapter` — is public. Don't add a secret-bearing column to that table.
 
+### Checking the live posture
+
+Migrations describe intent; prod can drift from them (a `get_database_size_bytes` grant to `anon` was found in July 2026 that no migration ever made). These queries check the database itself. Run them in the SQL Editor after any security-related change.
+
+Every table, its RLS state and policy count — a table here that isn't in the migrations is unprotected and needs one:
+
+```sql
+select c.relname, c.relrowsecurity as rls_enabled, (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname) as policies from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' order by 1;
+```
+
+Expected: all `rls_enabled = true`, and `productions` the only row with a policy.
+
+What the API roles can execute — nothing should be callable by `anon`:
+
+```sql
+select n.nspname || '.' || p.proname as function, has_function_privilege('anon', p.oid, 'execute') as anon, has_function_privilege('authenticated', p.oid, 'execute') as authenticated, p.prosecdef as security_definer, p.proconfig as settings from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' order by 1;
+```
+
+Expected: `set_updated_at` (a trigger function, with `search_path=` pinned) and `get_database_size_bytes` (service role only).
+
+Any database-side HTTP call — this project has none; all outbound requests come from edge functions:
+
+```sql
+select n.nspname || '.' || p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where p.prosrc ilike '%net.http%';
+```
+
+Leftover privileged values in database configuration:
+
+```sql
+select name, setting from pg_settings where name like 'app.settings.%';
+```
+
+Expected: no rows. See [`SECRETS.md`](./SECRETS.md) if `app.settings.service_role_key` is still set.
+
 ## Migrations reference
 
 | file                                           | purpose                                                      |
@@ -189,3 +223,4 @@ Two consequences worth remembering when adding features:
 | `20260426120000_telegram_pending_welcome.sql`  | `telegram_pending_welcome_html` staged until `/start` |
 | `20260727120000_enable_rls.sql`                | enables RLS on every `public` table; public `select` policy on `productions`, deny-all elsewhere |
 | `20260727130000_lint_hardening.sql`            | drops the dead `invoke_scrape_tickets` + `_guarded` functions, pins `set_updated_at`'s `search_path`, restricts `get_database_size_bytes()` to `service_role`, removes the listable-bucket policy on `storage.objects` |
+| `20260728120000_drop_pg_net.sql`               | drops `pg_net` — unused once the cron invoker is gone (no webhooks, no cron jobs) |
