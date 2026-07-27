@@ -15,7 +15,9 @@ supabase start
 supabase db reset   # optional: applies migrations + seed
 ```
 
-After a reset, if you use **pg_cron** + `invoke_scrape_tickets`, configure database settings as described in [`SECRETS.md`](./SECRETS.md).
+A reset needs no extra database settings. Scraping is driven by the Firefox
+extension posting to `report-scrape`, not by pg_cron — see
+[`SECRETS.md`](./SECRETS.md) for the keys each component needs.
 
 ## Edge functions
 

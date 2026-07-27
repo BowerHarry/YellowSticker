@@ -145,6 +145,20 @@ extension is offline or just outside its configured active window.
 - **Edge functions** use the **service-role key** (set via `supabase secrets set`).
 - **Firefox extension** uses the **anon key** to read `productions`, and posts write-requests to the `report-scrape` edge function with a shared secret in the `X-Scraper-Secret` header. It never sees the service-role key.
 
+### Row level security
+
+RLS is enabled on every table in `public` (`20260727120000_enable_rls.sql`):
+
+- **`productions`** has one policy — `select` for `anon` + `authenticated`. This is the only table either the web SPA or the extension queries directly, and both only read it. Writes with the publishable key are refused.
+- **`users`, `subscriptions`, `notification_logs`, `scrape_heartbeats`, `scraper_settings`** have **no policies at all**, deliberately: nothing outside the service role touches them, so anon gets nothing.
+
+Edge functions are unaffected throughout — they go through `adminClient` (`functions/_shared/db.ts`), and the service role bypasses RLS.
+
+Two consequences worth remembering when adding features:
+
+- Any new browser-side read needs an explicit policy, or it silently returns zero rows.
+- RLS is row-level only. `productions` is selected with `*`, so every column on it — including `scraping_url`, `series_code`, `adapter` — is public. Don't add a secret-bearing column to that table.
+
 ## Migrations reference
 
 | file                                           | purpose                                                      |
@@ -168,3 +182,10 @@ extension is offline or just outside its configured active window.
 | `20260423005_subscription_alerts.sql`          | `subscriptions.last_alerted_at` + `productions.last_availability_transition_at` + partial index for per-user availability fan-out |
 | `20260423006_stripe_mode_flag.sql`             | `subscriptions.is_test_mode` so test vs live Stripe rows can be told apart without calling Stripe |
 | `20260423007_drop_dead_tables.sql`             | drops `scraper_usage_daily` + `increment_scraper_usage()` (legacy pg_cron bookkeeping) and `theatres` + `productions.theatre_id` (abandoned normalisation that the app never read) |
+| `20260423140000_invoke_scrape_tickets_require_db_settings.sql` | hardened the old cron invoker (since dropped — see `20260727130000`) |
+| `20260423150000_invoke_scrape_tickets_apikey_header.sql` | sent `apikey` + `Authorization` from the old cron invoker (since dropped) |
+| `20260424120000_telegram_notifications.sql`    | `users.telegram_chat_id` / `telegram_link_token` for standing-ticket alerts |
+| `20260425180000_subscription_notification_preference.sql` | per-subscription `notification_preference` |
+| `20260426120000_telegram_pending_welcome.sql`  | `telegram_pending_welcome_html` staged until `/start` |
+| `20260727120000_enable_rls.sql`                | enables RLS on every `public` table; public `select` policy on `productions`, deny-all elsewhere |
+| `20260727130000_lint_hardening.sql`            | drops the dead `invoke_scrape_tickets` + `_guarded` functions, pins `set_updated_at`'s `search_path`, restricts `get_database_size_bytes()` to `service_role`, removes the listable-bucket policy on `storage.objects` |

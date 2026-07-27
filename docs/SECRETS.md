@@ -23,7 +23,6 @@ Official overview: [Understanding API keys](https://supabase.com/docs/guides/api
 | **Web** (`web/.env.local`) | `VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (fallback: `VITE_PUBLIC_SUPABASE_ANON_KEY` during transition) |
 | **Edge functions** (secrets) | **`BACKEND_API_SECRET_KEY`** (`sb_secret_…` or legacy JWT). Hosted projects **cannot** use custom secret names starting with `SUPABASE_`. Fallback: optional **`SERVICE_ROLE_KEY`**, or platform-injected **`SUPABASE_SERVICE_ROLE_KEY`**. |
 | **Firefox extension** | Paste the **publishable** key into the options field (stored under the internal key name `supabaseAnonKey`). |
-| **Postgres cron** → `net.http_post` | Database setting `app.settings.service_role_key` — value should be your **`sb_secret_…`** (same setting name as before; it is the “privileged gateway key”, not necessarily a JWT). |
 
 Edge functions already use **`verify_jwt = false`** in `supabase/config.toml` for every function so the gateway accepts non-JWT API keys.
 
@@ -33,10 +32,9 @@ Edge functions already use **`verify_jwt = false`** in `supabase/config.toml` fo
 2. **Edge Functions → Secrets**: set **`BACKEND_API_SECRET_KEY`** to the `sb_secret_…` value (do not use a name starting with `SUPABASE_`). Optionally set **`SERVICE_ROLE_KEY`** for a legacy JWT during migration. Redeploy functions.  
 3. **Web**: set `VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` / hosting env; remove `VITE_PUBLIC_SUPABASE_ANON_KEY` when done.  
 4. **Extension**: paste the new publishable key in options → Save.  
-5. **Cron SQL** (if used): update `app.settings.service_role_key` to the **`sb_secret_…`** value (see below). Run migration `20260423150000_*` or later so `net.http_post` sends both `apikey` and `Authorization`.  
-6. **Verify** production: web login, extension run-once, monitor admin, stripe webhook path.  
-7. **Dashboard** → **API Keys** → **Legacy API keys** → **deactivate** `anon` and `service_role` when “last used” indicators show nothing still depends on them.  
-8. Remove legacy env vars from CI and delete old secrets from the vault.
+5. **Verify** production: web login, extension run-once, monitor admin, stripe webhook path.  
+6. **Dashboard** → **API Keys** → **Legacy API keys** → **deactivate** `anon` and `service_role` when “last used” indicators show nothing still depends on them.  
+7. Remove legacy env vars from CI and delete old secrets from the vault.
 
 ## Rotating a compromised key
 
@@ -50,22 +48,31 @@ Edge functions already use **`verify_jwt = false`** in `supabase/config.toml` fo
 
 Create another secret key in the dashboard, update all backends, then **delete** the compromised secret key entry.
 
-## Configuring `invoke_scrape_tickets` (cron → edge function)
+## Removed: database settings for the old cron scraper (`app.settings.*`)
 
-Set these **once per environment** in the Supabase **SQL Editor**. Use your project URL and your current **secret** key (`sb_secret_…` preferred):
+Scraping runs from the Firefox extension, which POSTs to the `report-scrape`
+edge function. The pg_cron job that used to drive it, and the
+`invoke_scrape_tickets` / `invoke_scrape_tickets_guarded` functions it called,
+are gone (`20260727130000_lint_hardening.sql`). Nothing reads
+`app.settings.functions_url` or `app.settings.service_role_key` any more.
+
+**If this project was ever configured with those settings, clear them** — the
+second one stores a privileged key in database configuration where it no longer
+serves any purpose. In the SQL Editor:
 
 ```sql
-alter database postgres set app.settings.functions_url
-  to 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/scrape-tickets';
+-- inspect first
+select name, setting from pg_settings where name like 'app.settings.%';
 
--- Privileged key for the edge gateway (sb_secret_… recommended; legacy service_role JWT still works until disabled)
-alter database postgres set app.settings.service_role_key
-  to 'YOUR_SB_SECRET_OR_LEGACY_JWT';
+alter database postgres reset app.settings.service_role_key;
+alter database postgres reset app.settings.functions_url;
 ```
 
-If `alter database … set` is not permitted on your plan, use Supabase’s documented approach for **custom database settings** or **Vault**.
+If that key was a legacy `service_role` JWT, treat it as retired rather than
+merely unset: deactivate it in **Dashboard → API Keys → Legacy API keys**.
 
-For **local** `supabase start`, use keys from `supabase status` (JWT-based locally until the platform exposes `sb_*` keys to the CLI).
+For **local** `supabase start`, use keys from `supabase status` (JWT-based
+locally until the platform exposes `sb_*` keys to the CLI).
 
 ## Edge function secrets (Deno)
 
